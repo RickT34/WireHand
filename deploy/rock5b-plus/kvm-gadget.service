@@ -1,0 +1,13 @@
+[Unit]
+Description=ROCK KVM USB keyboard and absolute mouse gadget
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/kvm-mcp/.venv/bin/rock5b-plus-gadget start
+ExecStop=/opt/kvm-mcp/.venv/bin/rock5b-plus-gadget stop
+TimeoutStartSec=20
+
+[Install]
+WantedBy=multi-user.target

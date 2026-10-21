@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rock-kvm": {
+      "command": "ssh",
+      "args": ["-T", "-o", "BatchMode=yes", "r5p", "/opt/kvm-mcp/.venv/bin/kvm-mcp", "--backend", "rock5b-plus"]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=ROCK KVM RGB HDMI input profile
+After=systemd-modules-load.service
+Before=kvm-web.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/kvm-mcp/.venv/bin/rock5b-plus-hdmi
+TimeoutStartSec=20
+
+[Install]
+WantedBy=multi-user.target
