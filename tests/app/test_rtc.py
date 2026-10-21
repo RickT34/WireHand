@@ -8,7 +8,7 @@ from aiortc.codecs.h264 import H264Encoder
 from aiortc import RTCPeerConnection, RTCConfiguration
 from aiortc.mediastreams import MediaStreamError
 
-from kvm_mcp.media import EncodedHub
+from kvm_automation.media import EncodedHub
 from kvm_mcp.app.rtc import EncodedTrack, RTCManager
 
 

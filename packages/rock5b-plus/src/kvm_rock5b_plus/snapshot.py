@@ -9,7 +9,7 @@ import time
 
 from PIL import Image as PILImage
 
-from kvm_mcp.runtime import exclusive_lock
+from kvm_automation.runtime import exclusive_lock
 from .device import find_video
 
 

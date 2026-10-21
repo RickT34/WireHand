@@ -16,7 +16,7 @@ from starlette.testclient import TestClient
 
 from kvm_mcp.app.control import Controller
 from kvm_mcp.app.mcp import create_mcp
-from kvm_mcp.app.ownership import InputGate
+from kvm_automation.ownership import InputGate
 from kvm_mcp.app.web import make_app
 from tests.fakes import FakeBackend
 

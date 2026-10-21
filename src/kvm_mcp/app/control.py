@@ -1,8 +1,11 @@
 """Exclusive browser control, held only for the lifetime of its connection."""
 from contextlib import ExitStack
+from pathlib import Path
+import uuid
 
-from kvm_mcp.contracts import Backend
-from .ownership import InputGate
+from kvm_automation.contracts import Backend
+from kvm_automation.ownership import InputGate
+from kvm_automation.recording import Recorder
 
 DOM_KEYS = {f'Key{c.upper()}': c for c in 'abcdefghijklmnopqrstuvwxyz'}
 DOM_KEYS.update({f'Digit{c}': c for c in '1234567890'})
@@ -19,13 +22,51 @@ DOM_KEYS.update(dict(zip(
 
 
 class Controller:
-    def __init__(self, backend: Backend, gate: InputGate):
+    def __init__(self, backend: Backend, gate: InputGate, recordings_dir=None):
         self.backend = backend
         self.gate = gate
         self.owner = None
         self.session = None
         self.resources = None
         self.keys = set()
+        self.recordings_dir = Path(recordings_dir or gate.runtime/'recordings')
+        self.recorder = None
+        self.last_recording = None
+
+    def recording_status(self):
+        return {'active':self.recorder is not None,
+                'steps':len(self.recorder.data['steps']) if self.recorder else 0,
+                'last':self.last_recording}
+
+    def start_recording(self, owner):
+        if self.owner is not owner or self.owner is None:
+            raise RuntimeError('请先接管控制，再开始录制')
+        if self.recorder is not None:
+            raise RuntimeError('录制已经开始')
+        errors = self.release_keys()
+        if errors:raise RuntimeError('; '.join(errors))
+        self.recorder = Recorder(self.backend,self.recordings_dir/uuid.uuid4().hex)
+        self.session = self.recorder.wrap(self.session)
+
+    def stop_recording(self, owner, *, interrupted=False):
+        if self.owner is not owner or self.owner is None:
+            raise RuntimeError('仅当前控制者可以停止录制')
+        if self.recorder is None:
+            raise RuntimeError('尚未开始录制')
+        recorder, wrapper = self.recorder,self.session
+        try:
+            try:
+                errors = self.release_keys()
+                if errors:recorder.fail('; '.join(errors))
+                result = recorder.finish(interrupted=interrupted)
+            except (OSError,ValueError,RuntimeError) as exc:
+                recorder.fail(exc)
+                result = recorder.finish(interrupted=True)
+            self.last_recording = result
+            return result
+        finally:
+            self.session = wrapper.inner
+            self.recorder = None
 
     @property
     def marker(self):
@@ -52,14 +93,20 @@ class Controller:
         try:
             if self.session is not None:
                 self.session.release_all()
-        except (OSError, RuntimeError) as exc:
+        except (OSError, ValueError, RuntimeError) as exc:
             return [str(exc)]
         return []
 
     def disconnect(self, owner):
         if self.owner is None or self.owner is not owner:
             return []
-        errors = self.release_keys()
+        errors = []
+        if self.recorder:
+            try:
+                self.stop_recording(owner,interrupted=True)
+            except (OSError,ValueError,RuntimeError) as exc:
+                errors.append(str(exc))
+        errors += self.release_keys()
         try:
             self.resources.close()
         except (OSError, RuntimeError) as exc:
@@ -74,6 +121,8 @@ class Controller:
         if self.owner is None:
             self.recover_stale()
             return
+        if self.recorder:
+            self.stop_recording(owner)
         errors = self.disconnect(owner)
         if errors:
             raise RuntimeError('接管已结束，但释放键鼠失败：' + '; '.join(errors))

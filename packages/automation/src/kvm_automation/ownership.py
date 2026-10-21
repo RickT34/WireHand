@@ -1,9 +1,15 @@
 """Cross-process input ownership shared by MCP and web applications."""
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 import uuid
 
-from kvm_mcp.runtime import exclusive_lock
+from kvm_automation.runtime import exclusive_lock
+
+
+@dataclass
+class InputLease:
+    revision: str | None = None
 
 
 class InputGate:
@@ -29,8 +35,10 @@ class InputGate:
         # Call only while holding input.lock. Atomic replacement lets observations
         # read the revision without acquiring the long-lived human-control lock.
         temporary = self.runtime / 'input-revision.tmp'
-        temporary.write_text(uuid.uuid4().hex)
+        revision = uuid.uuid4().hex
+        temporary.write_text(revision)
         temporary.replace(self.runtime / 'input-revision')
+        return revision
 
     @contextmanager
     def automated(self):
@@ -39,10 +47,11 @@ class InputGate:
         with exclusive_lock(self.runtime, 'input'):
             if self.manual:
                 raise RuntimeError('Browser has manual control; wait for it to disconnect or return control')
+            lease = InputLease()
             try:
-                yield
+                yield lease
             finally:
-                self._advance()
+                lease.revision = self._advance()
 
     @contextmanager
     def human(self):

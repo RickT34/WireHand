@@ -6,12 +6,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from kvm_mcp.app.ownership import InputGate
-from kvm_mcp.app.vision.detect import ContourDetector
-from kvm_mcp.app.vision.cli import SavedScreen, export_gallery
-from kvm_mcp.app.vision.model import Candidate, Target
-from kvm_mcp.app.vision.render import partition
-from kvm_mcp.app.vision.service import StaleSnapshot, VisionService
+from kvm_automation.ownership import InputGate
+from kvm_automation.vision.detect import ContourDetector
+from kvm_automation.vision.cli import SavedScreen, export_gallery
+from kvm_automation.vision.model import Candidate, Target
+from kvm_automation.vision.render import partition
+from kvm_automation.vision.service import StaleSnapshot, VisionService
 from tests.fakes import FakeBackend
 
 

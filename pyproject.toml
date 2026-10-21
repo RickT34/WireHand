@@ -8,12 +8,13 @@ dependencies = [
     "aiortc>=1.14,<2",
     "anyio>=4,<5",
     "mcp>=1.12,<2",
-    "numpy>=2,<3",
-    "opencv-python-headless>=4.10,<5",
-    "pillow>=11,<13",
+    "kvm-automation",
     "starlette>=0.40,<2",
     "uvicorn[standard]>=0.30,<1",
 ]
+
+[project.optional-dependencies]
+rock5b-plus = ["kvm-rock5b-plus"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -22,13 +23,16 @@ build-backend = "setuptools.build_meta"
 [project.scripts]
 kvm-mcp = "kvm_mcp.bootstrap:mcp_main"
 kvm-web = "kvm_mcp.bootstrap:web_main"
-kvm-inspect = "kvm_mcp.app.vision.cli:main"
-rock5b-plus-gadget = "kvm_mcp.platforms.rock5b_plus.gadget:main"
-rock5b-plus-hdmi = "kvm_mcp.platforms.rock5b_plus.hdmi:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 "kvm_mcp.app" = ["static/*"]
-"kvm_mcp.platforms.rock5b_plus" = ["edid/*.bin"]
+
+[tool.uv.workspace]
+members = ["packages/automation", "packages/rock5b-plus"]
+
+[tool.uv.sources]
+kvm-automation = { workspace = true }
+kvm-rock5b-plus = { workspace = true }

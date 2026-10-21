@@ -6,3 +6,4 @@ artifacts/
 build/
 dist/
 *.egg-info/
+recordings/

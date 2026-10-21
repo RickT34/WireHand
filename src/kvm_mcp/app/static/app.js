@@ -5,6 +5,7 @@ let display=screen, peer=null, rtcId=null, rtcStarting=false, rtcGeneration=0, r
 let rtcFrames=0, previousRtcStats=null, rtcRtt=null;
 let rtcDiagnostic={stage:'尚未协商'}, lastRTCFailure=null;
 let input, video, controlling=false, queue=[], busy=false, lastState=null, lastFrame=0, frames=0, fps=0;
+let recordingActive=false, recordingPending=null;
 const JPEG_BUDGET_BPS=5000000, JPEG_MAX_FPS=5;
 const loopbackHost=['localhost','127.0.0.1','[::1]','::1'].includes(location.hostname || location.host.split(':')[0]);
 const wsURL = path => `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${path}`;
@@ -14,7 +15,20 @@ function setControl(active){
   controlling=active;
   for(const surface of [screen,liveVideo])surface.classList.toggle('controlling',active);
   $('take').hidden=active; $('shortcut').disabled=!active; $('release').disabled=!active;
+  $('record-toggle').disabled=!active || recordingPending!==null;
   if(active){if(gained)display.focus({preventScroll:true});$('mode-label').textContent='手动控制';}
+}
+function setRecording(state){
+  if(!state)return;
+  recordingActive=state.active;
+  if(recordingPending===state.active)recordingPending=null;
+  $('record-toggle').disabled=!controlling || recordingPending!==null;
+  $('record-toggle').textContent=state.active?'停止并生成脚本':'开始录制';
+  $('record-status').textContent=state.active?`录制中 · 已完成 ${state.steps} 步`:
+    state.last?`${state.last.status==='complete'?'录制完成':state.last.status==='interrupted'?'录制因断线中断':'录制失败'} · ${state.last.steps} 步${state.last.status==='complete'?' · 交还控制后可运行脚本':''}`:
+    '接管后可录制屏幕与操作，生成 Python 脚本';
+  $('record-download').hidden=!state.last;
+  if(state.last)$('record-download').href=`/api/recordings/${encodeURIComponent(state.last.id)}/download`;
 }
 function send(message){
   if(!input || input.readyState!==WebSocket.OPEN)return;
@@ -29,9 +43,10 @@ function send(message){
 function pump(){if(busy || !queue.length || input?.readyState!==WebSocket.OPEN)return;busy=true;input.send(JSON.stringify(queue.shift()));}
 function connectInput(){
   input=new WebSocket(wsURL('/ws/control'));busy=false;queue=[];
-  input.onmessage=event=>{const reply=JSON.parse(event.data);busy=false;setControl(reply.controlling);
+  input.onmessage=event=>{const reply=JSON.parse(event.data);busy=false;if(reply.error)recordingPending=null;setControl(reply.controlling);
+    setRecording(reply.recording);
     if(reply.error)notice(reply.error);pump();};
-  input.onclose=()=>{setControl(false);busy=false;queue=[];setTimeout(connectInput,1500);};
+  input.onclose=()=>{recordingPending=null;setControl(false);busy=false;queue=[];setTimeout(connectInput,1500);};
   input.onerror=()=>input.close();
 }
 function connectVideo(){
@@ -181,7 +196,7 @@ async function refresh(){
     const response=await fetch('/api/status',{cache:'no-store'});
     if(response.status===401){location.reload();return;}
     if(!response.ok)throw new Error('状态查询失败');
-    const state=await response.json();lastState=state;
+    const state=await response.json();lastState=state;setRecording(state.recording);
     if(state.video.transport==='webrtc' && !preferJPEG)startRTC();
     $('connection-dot').classList.add('online');$('connection-label').textContent='控制台已连接';
     $('video-status').textContent=state.video.signal?'视频 · 有信号':'视频 · 无信号';
@@ -209,6 +224,7 @@ async function refresh(){
     screen.classList.remove('live');$('empty').hidden=false;$('empty-title').textContent='正在重新连接';}
   setTimeout(refresh,1500);
 }
+$('record-toggle').onclick=()=>{if(recordingPending!==null)return;notice('');recordingPending=!recordingActive;$('record-toggle').disabled=true;send({type:recordingActive?'record_stop':'record_start'});};
 $('take').onclick=()=>{notice('');send({type:'take'});};
 $('give').onclick=()=>{notice('');send({type:'give'});};
 $('release').onclick=()=>send({type:'release'});

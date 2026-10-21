@@ -1,19 +1,11 @@
 """Composition root: the only place selecting concrete platform adapters."""
 import argparse
-import importlib
 import os
 from pathlib import Path
 
-from .contracts import Backend
 
 
-def load_backend(spec: str, runtime: Path) -> Backend:
-    if spec == 'rock5b-plus':
-        spec = 'kvm_mcp.platforms.rock5b_plus.backend:Rock5BPlusBackend'
-    module, separator, factory = spec.partition(':')
-    if not separator or not module or not factory:
-        raise ValueError('Backend must be rock5b-plus or module:factory')
-    return getattr(importlib.import_module(module), factory)(runtime=runtime)
+from kvm_automation.backends import load_backend
 
 
 def main(argv=None, *, service=None):
@@ -31,7 +23,7 @@ def main(argv=None, *, service=None):
     if not args.backend:
         parser.error('--backend or KVM_BACKEND is required')
     backend = load_backend(args.backend, args.runtime)
-    from .app.ownership import InputGate
+    from kvm_automation.ownership import InputGate
     gate = InputGate(args.runtime)
     if args.service == 'mcp':
         from .app.mcp import create_mcp
@@ -41,7 +33,8 @@ def main(argv=None, *, service=None):
         from .app.web import make_app
         hosts = [host.strip() for host in os.environ.get('KVM_HOSTS', 'localhost,127.0.0.1').split(',')
                  if host.strip()]
-        uvicorn.run(make_app(os.environ['KVM_TOKEN'], backend, gate, hosts=hosts),
+        recordings = Path(os.environ.get('KVM_RECORDINGS',str(Path.home()/'.local/share/kvm-mcp/recordings')))
+        uvicorn.run(make_app(os.environ['KVM_TOKEN'], backend, gate, hosts=hosts, recordings_dir=recordings),
                     host=os.environ.get('KVM_BIND', '0.0.0.0'),
                     port=int(os.environ.get('KVM_PORT', '8080')), proxy_headers=False,
                     ws_max_size=4096, ws_max_queue=8, access_log=False)

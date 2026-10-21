@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from kvm_mcp.contracts import Backend
+from kvm_automation.contracts import Backend
 from ..ownership import InputGate
 from .detect import ContourDetector, overlap
 from .model import Candidate, Detector, Snapshot, Target, View

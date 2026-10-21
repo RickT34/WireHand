@@ -7,8 +7,8 @@ import re
 import time
 import av
 
-from kvm_mcp.media import EncodedHub
-from kvm_mcp.runtime import exclusive_lock
+from kvm_automation.media import EncodedHub
+from kvm_automation.runtime import exclusive_lock
 from .device import find_video
 
 

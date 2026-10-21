@@ -5,22 +5,26 @@ from contextlib import asynccontextmanager, suppress
 import hashlib
 import hmac
 import json
+import io
 import logging
 from collections import deque
 from pathlib import Path
 import time
+import re
+import zipfile
 from urllib.parse import parse_qs
 
 from starlette.applications import Starlette
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocketDisconnect
 
-from kvm_mcp.contracts import Backend
+from kvm_automation.contracts import Backend
 from .control import Controller
-from .ownership import InputGate
+from kvm_automation.ownership import InputGate
+from kvm_automation import Recording
 from .rtc import RTCManager
 
 STATIC = Path(__file__).parent / 'static'
@@ -35,11 +39,11 @@ LOGIN = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <p class="muted small">{error}</p></main></body></html>'''
 
 
-def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True, hosts=None, control_timeout=7):
+def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True, hosts=None, control_timeout=7, recordings_dir=None):
     if len(token) < 20:
         raise ValueError('KVM_TOKEN must contain at least 20 characters')
     hub = backend.create_video()
-    controller = Controller(backend, gate)
+    controller = Controller(backend, gate, recordings_dir)
     control_mutex = asyncio.Lock()
     rtc = RTCManager(hub.encoded) if hub.encoded is not None else None
     rtc_reports = deque(maxlen=20)
@@ -128,7 +132,7 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
             input_status = await asyncio.to_thread(backend.input_state)
         except (OSError, RuntimeError) as exc:
             input_status = {'connected': False, 'detail': str(exc)}
-        return JSONResponse({'platform': backend.name, 'video': {**hub.status(), 'transport': 'webrtc' if rtc else 'jpeg'}, 'input': input_status, 'control': controller.status()},
+        return JSONResponse({'platform': backend.name, 'video': {**hub.status(), 'transport': 'webrtc' if rtc else 'jpeg'}, 'input': input_status, 'control': controller.status(), 'recording': controller.recording_status()},
                             headers={'Cache-Control': 'no-store'})
 
     async def rtc_offer(request):
@@ -235,6 +239,10 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
                             await asyncio.to_thread(controller.claim, owner)
                         elif kind == 'give':
                             await asyncio.to_thread(controller.give_back, owner)
+                        elif kind == 'record_start':
+                            await asyncio.to_thread(controller.start_recording, owner)
+                        elif kind == 'record_stop':
+                            await asyncio.to_thread(controller.stop_recording, owner)
                         else:
                             await asyncio.to_thread(controller.action, owner, message)
                     except (OSError, ValueError, RuntimeError) as exc:
@@ -243,7 +251,8 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
                             await asyncio.to_thread(controller.disconnect, owner)
                 await ws.send_json({'ok': not error, 'error': error,
                                     'controlling': controller.owner is owner,
-                                    'control': controller.status()})
+                                    'control': controller.status(),
+                                    'recording': controller.recording_status()})
         except (WebSocketDisconnect, asyncio.TimeoutError, ValueError, RuntimeError):
             pass
         finally:
@@ -257,12 +266,41 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
             with suppress(RuntimeError, WebSocketDisconnect):
                 await ws.close()
 
+    async def recording_download(request):
+        if not authenticated(request):
+            return JSONResponse({'error':'Login required'},status_code=401)
+        identity = request.path_params['identity']
+        if not re.fullmatch('[a-f0-9]{32}',identity):
+            return JSONResponse({'error':'Not found'},status_code=404)
+        directory = controller.recordings_dir/identity
+        def archive():
+            flow = Recording.load(directory,allow_incomplete=True)
+            if flow.data['status']=='recording':
+                raise ValueError('Stop recording before downloading')
+            output = io.BytesIO()
+            with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED) as bundle:
+                for name in ('recording.json','replay.py'):
+                    bundle.write(directory/name,f'{identity}/{name}')
+                for target in flow.data['targets'].values():
+                    bundle.write(directory/target['image'],f'{identity}/{target["image"]}')
+            return output.getvalue()
+        try:
+            data = await asyncio.to_thread(archive)
+        except FileNotFoundError:
+            return JSONResponse({'error':'Not found'},status_code=404)
+        except ValueError as exc:
+            return JSONResponse({'error':str(exc)},status_code=409)
+        return Response(data,media_type='application/zip',headers={
+            'Content-Disposition':f'attachment; filename="kvm-recording-{identity}.zip"',
+            'Cache-Control':'no-store'})
+
     app = Starlette(lifespan=lifespan, routes=[
         Route('/', index), Route('/login', login, methods=['POST']),
         Route('/logout', logout, methods=['POST']), Route('/api/status', status),
         Route('/api/rtc/offer', rtc_offer, methods=['POST']),
         Route('/api/rtc/report', rtc_report, methods=['POST']),
         Route('/api/rtc/diagnostics', rtc_diagnostics),
+        Route('/api/recordings/{identity}/download',recording_download),
         Route('/api/rtc/{identity}', rtc_close, methods=['DELETE']),
         Route('/{name}', static_file), WebSocketRoute('/ws/video', video_socket),
         WebSocketRoute('/ws/control', control_socket)])

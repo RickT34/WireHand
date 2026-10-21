@@ -1,0 +1,17 @@
+[project]
+name = "kvm-automation"
+version = "0.1.0"
+description = "Visual computer automation, recording and replay independent of MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2,<3", "opencv-python-headless>=4.10,<5", "pillow>=11,<13"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+kvm-inspect = "kvm_automation.vision.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

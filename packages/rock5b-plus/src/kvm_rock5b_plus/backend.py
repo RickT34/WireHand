@@ -2,7 +2,7 @@
 from contextlib import contextmanager, ExitStack
 from pathlib import Path
 
-from kvm_mcp.contracts import InputStatus
+from kvm_automation.contracts import InputStatus
 from .device import find_video
 from .hid import HID, char_report, key_report, mouse_report, send_press, usb_state
 from .snapshot import run, screenshot

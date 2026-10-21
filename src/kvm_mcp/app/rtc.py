@@ -8,7 +8,7 @@ import uuid
 
 import av
 
-from kvm_mcp.media import EncodedHub
+from kvm_automation.media import EncodedHub
 from aiortc import (MediaStreamTrack, RTCConfiguration, RTCPeerConnection,
                     RTCRtpSender, RTCSessionDescription)
 from aiortc.mediastreams import MediaStreamError

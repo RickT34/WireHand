@@ -33,6 +33,25 @@ test('heartbeat acknowledgements do not steal focus from toolbar',()=>{
   assert.equal(p.nodes.get('screen').focusCount,1);
 });
 
+test('recording toggle waits for server acknowledgement and exposes the download',()=>{
+  const p=page();
+  p.run('setControl(true)');
+  const toggle=p.nodes.get('record-toggle');
+  toggle.onclick();toggle.onclick();
+  assert.equal(p.sockets[0].sent.length,1);
+  assert.equal(JSON.parse(p.sockets[0].sent[0]).type,'record_start');
+  assert.equal(toggle.disabled,true);
+  p.sockets[0].onmessage({data:JSON.stringify({ok:true,controlling:true,recording:{active:true,steps:0,last:null}})});
+  assert.equal(toggle.disabled,false);
+  assert.match(toggle.textContent,/停止/);
+  toggle.onclick();
+  assert.equal(JSON.parse(p.sockets[0].sent[1]).type,'record_stop');
+  p.sockets[0].onmessage({data:JSON.stringify({ok:true,controlling:true,recording:{active:false,steps:0,last:{id:'abc',status:'complete',steps:3}}})});
+  assert.equal(p.nodes.get('record-download').hidden,false);
+  assert.equal(p.nodes.get('record-download').href,'/api/recordings/abc/download');
+  assert.match(p.nodes.get('record-status').textContent,/3 步/);
+});
+
 test('generic backend status enables input without USB or Rockchip fields',async()=>{
   const p=page({backendStatus:{platform:'another-platform',
     input:{connected:true,detail:'ready'},

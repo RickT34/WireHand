@@ -3,9 +3,9 @@ from mcp.server.fastmcp import FastMCP, Image
 from mcp.types import TextContent
 import json
 
-from kvm_mcp.contracts import Backend
-from .ownership import InputGate
-from .vision.service import VisionService
+from kvm_automation.contracts import Backend
+from kvm_automation.ownership import InputGate
+from kvm_automation.vision.service import VisionService
 
 
 def create_mcp(backend: Backend, gate: InputGate) -> FastMCP:

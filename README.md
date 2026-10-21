@@ -1,23 +1,38 @@
 # KVM MCP
 
-通过 MCP 和网页控制台查看、操作被控设备。项目分成两个部分：
+通过独立 Python 库、MCP 或网页控制台查看、操作被控设备。源码分成三个可单独打包的项目：
 
-| 部分 | 代码 | 职责 |
+| 包 | 代码 | 职责 |
 | --- | --- | --- |
-| 平台硬件适配 | `src/kvm_mcp/platforms/` | 设备发现、视频采集与编码、截图、键鼠输入、平台初始化 |
-| MCP 与网页应用 | `src/kvm_mcp/app/` | MCP 工具、网页、认证、控制权仲裁、JPEG/WebRTC 传输 |
+| `kvm-automation` | `packages/automation/` | Python API、视觉定位、录制、自动等待、重放、脚本生成、设备接口与控制权 |
+| `kvm-rock5b-plus` | `packages/rock5b-plus/` | ROCK 5B+ 的 HDMI、编码、截图、HID、gadget 与 EDID |
+| `kvm-mcp` | `src/kvm_mcp/` | MCP 工具与网页应用、认证、WebSocket、WebRTC |
 
-目前的实机适配是 **ROCK 5B+**。应用层通过 `Backend`、`InputSession` 和 `VideoSource` 接口使用平台，不导入具体适配器；平台层不导入 MCP、Starlette 或 aiortc。`bootstrap.py` 负责选择后端并组装应用。共享接口、数据分发与进程锁不构成第三套业务系统。
+核心库不依赖 MCP、网页或硬件包。MCP/网页与硬件适配器共同依赖核心接口，应用不会直接导入 ROCK 实现。硬件通过 entry point 加载；MCP 包中的 ROCK 依赖是可选 extra。
 
-本次重构不保留根目录脚本入口；安装 Python 包后使用下面的新命令。
+## Python 自动化与操作录制
+
+```python
+from kvm_automation import Computer, Recording
+
+with Computer.connect(backend="rock5b-plus") as computer:
+    computer.click(320, 240)
+    computer.hotkey("ctrl", "a")
+    computer.write("hello")
+    Recording.load("my-recording").replay(computer)
+```
+
+网页接管后点击“开始录制”，正常操作，再点“停止并生成脚本”。下载包包含可编辑的 `replay.py`、目标图像和结构化记录；脚本自动定位并等待目标，无需手动裁图或为每步编写等待循环。录制捕获经过网页控制台的输入；直接插在目标电脑上的物理键鼠需要额外的输入监听后端。
+
+独立安装、录制工作流和当前能力边界见 [自动化与录制说明](docs/AUTOMATION.md)。
 
 ## 开发与验证
 
 ```sh
-uv sync --frozen
+uv sync --all-packages --frozen
 uv run python -m unittest discover -s tests -t . -q
 node --test tests/app/test_frontend.cjs
-uv build
+uv build --all-packages
 ```
 
 测试在普通 Linux 开发机运行，不需要板卡；覆盖真实 stdio MCP、HTTP/WebSocket、控制权互斥、视频进程清理、HID 报告和包内 EDID。硬件性能、目标机键鼠行为和浏览器操作体验需要另做实机验收。
@@ -45,6 +60,7 @@ uv run kvm-web --backend rock5b-plus
 | `KVM_TOKEN` | 无 | 网页密码，至少 20 个字符 |
 | `KVM_BIND` | `0.0.0.0` | 网页监听地址 |
 | `KVM_PORT` | `8080` | 网页端口 |
+| `KVM_RECORDINGS` | `~/.local/share/kvm-mcp/recordings` | 网页录制的持久保存目录 |
 | `KVM_HOSTS` | `localhost,127.0.0.1` | 允许访问的主机名/IP，不含端口，逗号分隔 |
 
 局域网地址、板卡名字和视频编码器路径都不再硬编码在网页应用里。系统服务、SSH MCP 示例和 ROCK 5B+ 参数见 [平台部署说明](docs/rock5b-plus/README.md)。
@@ -69,6 +85,7 @@ uv run kvm-inspect /path/to/screenshot.jpg --output artifacts/vision/my-screen
 
 ## 继续开发
 
+- [自动化库与录制脚本](docs/AUTOMATION.md)
 - [架构、接口约定与新增平台](docs/ARCHITECTURE.md)
 - [视觉定位与无硬件调试](docs/VISUAL_TARGETING.md)
 - [ROCK 5B+ 安装与部署](docs/rock5b-plus/README.md)

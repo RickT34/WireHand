@@ -25,6 +25,11 @@
 </section>
 <section class="help-row"><p><span class="hint-dot"></span><span id="hint">默认仅查看。接管后点击画面，即可使用鼠标和键盘。</span></p>
 <span class="tag" id="encoder-label">视频连接</span></section>
+<section class="recording-row" aria-label="操作录制">
+<button id="record-toggle" disabled>开始录制</button>
+<span id="record-status" role="status" aria-live="polite">接管后可录制屏幕与操作，生成 Python 脚本</span>
+<a id="record-download" hidden>下载脚本与目标图片</a>
+</section>
 <p id="notice" class="notice" role="status" aria-live="polite"></p>
 <details><summary>连接与操作说明</summary><p>请按照所用平台的接线说明，连接被控设备的视频输出与键鼠输入接口。</p>
 <p>手动接管时 MCP 输入暂停。切换标签或窗口会释放按键；连接断开后自动结束接管并恢复 MCP；无响应连接最多约 7 秒后释放。</p>

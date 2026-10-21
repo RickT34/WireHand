@@ -1,7 +1,7 @@
 import unittest
 
-from kvm_mcp.platforms.rock5b_plus.hid import char_report, key_report, mouse_report, send_press
-from kvm_mcp.platforms.rock5b_plus.backend import RockInput
+from kvm_rock5b_plus.hid import char_report, key_report, mouse_report, send_press
+from kvm_rock5b_plus.backend import RockInput
 
 
 class RecordingHID:

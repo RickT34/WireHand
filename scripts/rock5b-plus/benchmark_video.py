@@ -3,7 +3,7 @@ import json
 import resource
 import subprocess
 import time
-from kvm_mcp.platforms.rock5b_plus.video import pipeline
+from kvm_rock5b_plus.video import pipeline
 
 results = []
 for mode in ('hardware', 'software'):
