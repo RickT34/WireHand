@@ -12,6 +12,8 @@ from pathlib import Path
 import time
 import re
 import zipfile
+import ipaddress
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from urllib.parse import parse_qs
 
 from starlette.applications import Starlette
@@ -26,6 +28,7 @@ from .control import Controller
 from kvm_automation.ownership import InputGate
 from kvm_automation import Recording
 from .rtc import RTCManager
+from .h264 import H264Relay, serve_h264
 
 STATIC = Path(__file__).parent / 'static'
 LOGIN = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
@@ -39,13 +42,14 @@ LOGIN = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <p class="muted small">{error}</p></main></body></html>'''
 
 
-def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True, hosts=None, control_timeout=7, recordings_dir=None):
+def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True, hosts=None, control_timeout=7, recordings_dir=None, trusted_proxies=()):
     if len(token) < 20:
         raise ValueError('KVM_TOKEN must contain at least 20 characters')
     hub = backend.create_video()
     controller = Controller(backend, gate, recordings_dir)
     control_mutex = asyncio.Lock()
     rtc = RTCManager(hub.encoded) if hub.encoded is not None else None
+    h264 = H264Relay(hub.encoded) if hub.encoded is not None else None
     rtc_reports = deque(maxlen=20)
 
     def signature(value):
@@ -78,6 +82,8 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
             try:
                 if rtc:
                     await rtc.close_all()
+                if h264:
+                    h264.close()
             finally:
                 try:
                     if controller.owner is not None:
@@ -121,7 +127,7 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
 
     async def static_file(request):
         name = request.path_params['name']
-        if name not in ('style.css', 'app.js'):
+        if name not in ('style.css', 'app.js', 'h264.js'):
             return JSONResponse({'error': 'Not found'}, status_code=404)
         return FileResponse(STATIC / name, headers={'Cache-Control': 'no-cache'})
 
@@ -132,7 +138,10 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
             input_status = await asyncio.to_thread(backend.input_state)
         except (OSError, RuntimeError) as exc:
             input_status = {'connected': False, 'detail': str(exc)}
-        return JSONResponse({'platform': backend.name, 'video': {**hub.status(), 'transport': 'webrtc' if rtc else 'jpeg'}, 'input': input_status, 'control': controller.status(), 'recording': controller.recording_status()},
+        return JSONResponse({'platform': backend.name, 'video': {**hub.status(),
+                            'transport': 'h264-ws' if h264 else 'jpeg',
+                            'transports': ['h264-ws','webrtc','jpeg'] if h264 else ['jpeg']},
+                            'input': input_status, 'control': controller.status(), 'recording': controller.recording_status()},
                             headers={'Cache-Control': 'no-store'})
 
     async def rtc_offer(request):
@@ -217,6 +226,15 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
         finally:
             with suppress(RuntimeError, WebSocketDisconnect):
                 await ws.close()
+
+    async def h264_socket(ws):
+        if not authenticated(ws) or not same_origin(ws):
+            await ws.close(code=1008)
+            return
+        if h264 is None:
+            await ws.close(code=1003)
+            return
+        await serve_h264(ws,h264,authenticated)
 
     async def control_socket(ws):
         if not authenticated(ws) or not same_origin(ws):
@@ -303,8 +321,15 @@ def make_app(token: str, backend: Backend, gate: InputGate, *, start_video=True,
         Route('/api/recordings/{identity}/download',recording_download),
         Route('/api/rtc/{identity}', rtc_close, methods=['DELETE']),
         Route('/{name}', static_file), WebSocketRoute('/ws/video', video_socket),
+        WebSocketRoute('/ws/h264', h264_socket),
         WebSocketRoute('/ws/control', control_socket)])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts or ['localhost', '127.0.0.1'])
+    if trusted_proxies:
+        # No wildcard: trust forwarding headers only from explicitly named
+        # reverse-proxy addresses/networks, never from arbitrary clients.
+        for address in trusted_proxies:
+            ipaddress.ip_network(address,strict=False)
+        app.add_middleware(ProxyHeadersMiddleware,trusted_hosts=list(trusted_proxies))
     app.state.controller = controller
     return app
 

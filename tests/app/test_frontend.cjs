@@ -113,11 +113,37 @@ test('video fallback preserves manual control and selects canvas',()=>{
   assert.match(p.nodes.get('notice').textContent,/兼容画面/);
 });
 
-test('loopback SSH forwarding defaults to JPEG without attempting WebRTC',()=>{
+test('H.264 waits for rendered frames and preserves control and recording across fallback',()=>{
+  const players=[];
+  const p=page({H264Player:class {
+    constructor(options){this.options=options;players.push(this);}
+    start(){} stop(){this.stopped=true;}
+  }});
+  p.run("setControl(true);setRecording({active:true,steps:2,last:null});startFast()");
+  const jpeg=p.sockets.find(socket=>socket.url.endsWith('/ws/video'));
+  const player=players[0];
+  player.options.onStatus({stage:'等待关键帧'});
+  assert.equal(jpeg.readyState,1,'Keep fallback until actual decoded output');
+  player.options.onFrame({mode:'mse',frames:1,width:1280,height:720});
+  assert.equal(jpeg.readyState,3);
+  assert.equal(p.nodes.get('rtc-video').hidden,false);
+  assert.equal(p.nodes.get('screen').hidden,true);
+  player.options.onError('test decode failure');
+  assert.equal(player.stopped,true);
+  assert.equal(p.nodes.get('release').disabled,false);
+  assert.match(p.nodes.get('record-toggle').textContent,/停止/);
+  assert.equal(p.nodes.get('screen').hidden,false);
+  const replacement=p.sockets.at(-1);
+  assert.equal(replacement.url,'ws://example/ws/video');
+  assert.equal(replacement.readyState,1);
+  player.options.onFrame({mode:'mse',frames:2,width:1280,height:720});
+  assert.equal(replacement.readyState,1,'Late output from stopped player must not close JPEG');
+});
+
+test('loopback forwarding permits the new H.264 WebSocket default',()=>{
   const p=page({location:{protocol:'http:',hostname:'127.0.0.1',host:'127.0.0.1:18080'}});
-  assert.equal(p.nodes.get('transport').value,'jpeg');
-  assert.equal(p.run('preferJPEG'),true);
-  assert.match(p.nodes.get('notice').textContent,/SSH/);
+  assert.equal(p.run('transportMode'),'auto');
+  assert.equal(p.run('preferJPEG'),false);
 });
 
 test('track negotiation keeps JPEG visible until an actual video frame arrives',async()=>{
@@ -141,7 +167,7 @@ test('track negotiation keeps JPEG visible until an actual video frame arrives',
   peers[0].connectionState='failed';peers[0].iceConnectionState='failed';peers[0].onconnectionstatechange();
   p.run('startRTC()');
   assert.equal(peers.length,1,'Failed automatic attempts must not repeatedly interrupt JPEG');
-  p.nodes.get('transport').onchange({target:{value:'auto'}});
+  p.nodes.get('transport').onchange({target:{value:'webrtc'}});
   assert.equal(peers.length,2,'Selecting auto explicitly permits retry');
 });
 

@@ -34,10 +34,11 @@ def main(argv=None, *, service=None):
         hosts = [host.strip() for host in os.environ.get('KVM_HOSTS', 'localhost,127.0.0.1').split(',')
                  if host.strip()]
         recordings = Path(os.environ.get('KVM_RECORDINGS',str(Path.home()/'.local/share/kvm-mcp/recordings')))
-        uvicorn.run(make_app(os.environ['KVM_TOKEN'], backend, gate, hosts=hosts, recordings_dir=recordings),
+        proxies = [address.strip() for address in os.environ.get('KVM_TRUSTED_PROXIES','').split(',') if address.strip()]
+        uvicorn.run(make_app(os.environ['KVM_TOKEN'], backend, gate, hosts=hosts, recordings_dir=recordings, trusted_proxies=proxies),
                     host=os.environ.get('KVM_BIND', '0.0.0.0'),
                     port=int(os.environ.get('KVM_PORT', '8080')), proxy_headers=False,
-                    ws_max_size=4096, ws_max_queue=8, access_log=False)
+                    ws_max_size=4096, ws_max_queue=8, ws_per_message_deflate=False, access_log=False)
 
 
 def mcp_main():

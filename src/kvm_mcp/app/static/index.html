@@ -13,7 +13,7 @@
 <section class="screen-shell" id="screen-shell">
 <div class="screen-toolbar"><div class="pills"><span class="pill" id="video-status">视频 · 检查中</span>
 <span class="pill" id="input-status">输入 · 检查中</span></div>
-<div class="tools"><select id="transport" aria-label="视频模式"><option value="auto">自动 · WebRTC</option><option value="jpeg">兼容 · JPEG</option></select><select id="shortcut" aria-label="发送组合键"><option value="">发送组合键…</option>
+<div class="tools"><select id="transport" aria-label="视频模式"><option value="auto">自动 · 低延迟 H.264</option><option value="mse">兼容 · H.264</option><option value="webrtc">直连 · WebRTC</option><option value="jpeg">备用 · JPEG</option></select><select id="shortcut" aria-label="发送组合键"><option value="">发送组合键…</option>
 <option value="ctrl-alt-delete">Ctrl + Alt + Del</option><option value="alt-tab">Alt + Tab</option>
 <option value="meta">Windows / Command</option><option value="escape">Esc</option></select>
 <button id="release">释放按键</button><button id="fullscreen">全屏 ↗</button></div></div>
@@ -35,4 +35,4 @@
 <p>手动接管时 MCP 输入暂停。切换标签或窗口会释放按键；连接断开后自动结束接管并恢复 MCP；无响应连接最多约 7 秒后释放。</p>
 <p>建议单屏或复制模式。键盘按物理位置映射，中文需使用目标电脑的输入法。浏览器保留的组合键可通过上方菜单发送。</p>
 <pre id="diagnostics"></pre></details>
-</main><script src="/app.js" defer></script></body></html>
+</main><script src="/h264.js" defer></script><script src="/app.js" defer></script></body></html>

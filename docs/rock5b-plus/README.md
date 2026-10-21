@@ -87,9 +87,10 @@ SSH 提供认证，禁止分配终端。网页与 SSH MCP 默认共用 `/run/kvm
 | `KVM_VIDEO_DEVICE` | 动态发现 | 覆盖 HDMI RX V4L2 节点 |
 | `KVM_VIDEO_MODE` | `hardware` | `hardware` 或 `software` |
 | `KVM_VIDEO_SOURCE` | 真实输入 | `test` 使用合成源，仍需要所选编码工具 |
-| `KVM_TRANSPORT` | `webrtc` | vendor 硬件模式支持 WebRTC；`jpeg` 仅输出 JPEG |
+| `KVM_TRANSPORT` | `h264` | vendor 输出 H.264，供应用选择 WS/WSS 或 WebRTC；`jpeg` 仅输出 JPEG |
 | `KVM_MAX_FPS` | `60` | 1..60，不超过实际输入帧率 |
-| `KVM_H264_BITRATE` | `6000000` | 500000..20000000 bit/s |
+| `KVM_MAX_WIDTH` / `KVM_MAX_HEIGHT` | `1280` / `720` | 等比缩放输出上限；宽 320..3840，高 180..2160 |
+| `KVM_H264_BITRATE` | `2500000` | 500000..20000000 bit/s |
 | `KVM_FFMPEG` | `/usr/lib/jellyfin-ffmpeg/ffmpeg` | MPP/RGA FFmpeg 路径 |
 | `KVM_EDID_FILE` | 包内 `edid/1080p-rgb.bin` | RGB EDID 配置 |
 
@@ -102,6 +103,7 @@ vendor 管线为 HDMI/V4L2 mmap → 上传硬件缓冲 → RGA → MPP H.264，�
 ```sh
 uv run python scripts/smoke_mcp.py r5p
 uv run python scripts/smoke_web.py --origin http://192.168.50.152:8080 --frames 20 --live
+uv run python scripts/smoke_h264.py --origin http://192.168.50.152:8080 --seconds 10
 uv run python scripts/smoke_rtc.py --origin http://192.168.50.152:8080 --seconds 10
 ssh r5p 'systemctl status kvm-web kvm-gadget kvm-hdmi --no-pager'
 ```
@@ -110,7 +112,7 @@ ssh r5p 'systemctl status kvm-web kvm-gadget kvm-hdmi --no-pager'
 
 恢复原 EDID：先停止网页，停用 `kvm-hdmi`，执行 `/opt/kvm-mcp/.venv/bin/rock5b-plus-hdmi --restore`，再按需要启动网页。原始 EDID 保存在 `/var/lib/kvm-mcp/original-edid.bin`。恢复可能重新协商到当前管线不支持的格式。
 
-浏览器连接断开后自动结束接管；无响应连接在约七秒后释放。正常停用网页也会清理接管状态；异常退出遗留的标记在服务重启时清理。`/run` 的状态在整机重启后清除。HTTP 服务用于受信任局域网；WebRTC 使用 host ICE 和动态 UDP 端口，跨网络部署需要对应网络和 HTTPS 配置。
+浏览器连接断开后自动结束接管；无响应连接在约七秒后释放。正常停用网页也会清理接管状态；异常退出遗留的标记在服务重启时清理。`/run` 的状态在整机重启后清除。跨网络访问使用 [Nginx HTTPS/WSS 反代](../REMOTE_VIEWING.md)，网页视频与操作共用一个 HTTPS 端口。可选 WebRTC 使用 host ICE 和动态 UDP 端口，普通 HTTP 反代不转发其媒体流。
 
 控制权释放的实机回归检查：
 

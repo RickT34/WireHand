@@ -21,7 +21,7 @@ packages/rock5b-plus/src/kvm_rock5b_plus/
 src/kvm_mcp/
 ├── app/mcp.py                 MCP 调用入口
 ├── app/web.py / control.py    网页、认证、浏览器输入与录制入口
-├── app/rtc.py / static/       WebRTC 与前端
+├── app/h264.py / rtc.py / static/  WS/WSS 视频、WebRTC 与前端
 └── bootstrap.py               应用配置与组装
 ```
 
@@ -52,7 +52,9 @@ src/kvm_mcp/
 
 键名采用小写逻辑键，例如 `ctrl`、`a`、`enter`、`f2`。`type_text` 接受 1..1000 个 US 布局 ASCII 字符；`press_key` 的保持时间为 10..1000ms；滚轮为 -127..127。平台负责将这些语义转换为设备协议，并在写入前完成整条请求校验。浏览器 DOM 键名到逻辑键名的映射属于应用。
 
-H.264 平台在同一个 asyncio 事件循环中调用 `encoded.publish(data, pts, keyframe)`。`data` 是 Annex-B access unit，`pts` 为单调递增的 90kHz 时间戳。编码不得使用 B 帧，关键帧应包含解码所需 SPS/PPS；编码器重启时调用 `encoded.reset()`。消费者使用最多四帧的队列，溢出后丢弃预测链并等待下一个关键帧。此接口不要求平台构造 aiortc 对象。
+H.264 平台在同一个 asyncio 事件循环中调用 `encoded.publish(data, pts, keyframe)`。`data` 是 Annex-B access unit，`pts` 为单调递增的 90kHz 时间戳。编码不得使用 B 帧，关键帧应包含解码所需 SPS/PPS；编码器重启时调用 `encoded.reset()`。WebRTC 消费者使用最多四帧的队列；WS/WSS 消费者使用两帧待发队列及有 ACK 的发送窗口，溢出后丢弃预测链并等待下一个关键帧。此接口不要求平台构造 aiortc 对象。
+
+`app/h264.py` 订阅 `EncodedHub`，保存 SPS/PPS，向新观看者发送可独立解码的 IDR。`/ws/h264?format=annexb` 供 WebCodecs 使用；`format=mp4` 使用 PyAV 重新封装为 fMP4，供 MSE 使用，不进行二次编码。两者均复用网页登录、同源检查与会话失效处理。客户端只有在绘制完成或分片追加完成后才 ACK。具体窗口、重同步和 Nginx TLS 边界见 [远程视频](REMOTE_VIEWING.md)。
 
 同步平台方法允许阻塞；HTTP 状态查询和输入由 `asyncio.to_thread` 调用。视频生命周期与订阅运行在事件循环。平台模块导入时不访问设备。
 

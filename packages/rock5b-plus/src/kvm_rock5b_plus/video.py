@@ -1,4 +1,4 @@
-"""One HDMI capture process; all viewers consume only its latest JPEG."""
+"""One HDMI capture process, shared H.264 packets and latest JPEG preview."""
 import asyncio
 from contextlib import ExitStack, suppress
 import os
@@ -37,6 +37,11 @@ async def read_frame(reader):
     if not data.startswith(b'\xff\xd8') or not data.endswith(b'\xff\xd9'):
         raise RuntimeError('Incomplete JPEG')
     return data
+
+
+def output_size(width, height, max_width, max_height):
+    scale = min(1, max_width/width, max_height/height)
+    return max(16,int(width*scale)//16*16), max(8,int(height*scale)//8*8)
 
 
 def pipeline(source, width, height, mode='hardware', fps=60, dma_input=False):
@@ -86,9 +91,10 @@ def h264_pipeline(device, input_width, input_height, width, height, fps, bitrate
     filters = (f"select='isnan(prev_selected_t)+gt(floor(t*{fps}),floor(prev_selected_t*{fps}))',"
                f'hwupload,scale_rkrga=w={width}:h={height}:format=nv12:async_depth=1,'
                'split=2[main][preview];[preview]fps=5[snapshot]')
+    level = '3.2' if width<=1280 and height<=720 else '4.2' if width<=1920 and height<=1080 else '5.2'
     return args + ['-y', '-filter_complex', filters,
                    '-map', '[main]', '-an', '-c:v', 'h264_rkmpp',
-                   '-profile:v', 'baseline', '-level:v', '4.2', '-coder', 'cavlc', '-8x8dct', '0',
+                   '-profile:v', 'baseline', '-level:v', level, '-coder', 'cavlc', '-8x8dct', '0',
                    '-bf', '0', '-g', str(max(1, fps // 2)), '-rc_mode', 'VBR',
                    '-b:v', str(bitrate), '-maxrate', str(bitrate * 4 // 3),
                    '-bufsize', str(bitrate // 6), '-fps_mode', 'passthrough',
@@ -106,11 +112,15 @@ class VideoHub:
         self.condition = asyncio.Condition()
         self.mode = os.environ.get('KVM_VIDEO_MODE', 'hardware')
         self.mpp = self.mode == 'hardware' and Path('/dev/mpp_service').exists()
-        self.webrtc = self.mpp and os.environ.get('KVM_TRANSPORT', 'webrtc') == 'webrtc'
-        self.encoded = EncodedHub() if self.webrtc else None
-        self.bitrate = int(os.environ.get('KVM_H264_BITRATE', '6000000'))
+        self.h264 = self.mpp and os.environ.get('KVM_TRANSPORT', 'h264') != 'jpeg'
+        self.encoded = EncodedHub() if self.h264 else None
+        self.bitrate = int(os.environ.get('KVM_H264_BITRATE', '2500000'))
         if not 500000 <= self.bitrate <= 20000000:
             raise ValueError('KVM_H264_BITRATE must be 500000..20000000')
+        self.max_width = int(os.environ.get('KVM_MAX_WIDTH', '1280'))
+        self.max_height = int(os.environ.get('KVM_MAX_HEIGHT', '720'))
+        if not 320 <= self.max_width <= 3840 or not 180 <= self.max_height <= 2160:
+            raise ValueError('KVM_MAX_WIDTH must be 320..3840; KVM_MAX_HEIGHT must be 180..2160')
         self.test_source = os.environ.get('KVM_VIDEO_SOURCE') == 'test'
         self.max_fps = int(os.environ.get('KVM_MAX_FPS', '60'))
         if not 1 <= self.max_fps <= 60:
@@ -118,10 +128,10 @@ class VideoHub:
         self.info = {'signal': False, 'error': '等待 HDMI 信号', 'mode': self.mode,
                      'test_source': self.test_source, 'fps': 0, 'max_fps': self.max_fps,
                      'backend': 'rkmpp' if self.mpp else self.mode,
-                     'transport': 'webrtc' if self.webrtc else 'jpeg',
-                     'codec': 'H264' if self.webrtc else 'JPEG',
-                     'bitrate_target': self.bitrate if self.webrtc else None,
-                     'preview_fps': 5 if self.webrtc else self.max_fps,
+                     'transport': 'h264' if self.h264 else 'jpeg',
+                     'codec': 'H264' if self.h264 else 'JPEG',
+                     'bitrate_target': self.bitrate if self.h264 else None,
+                     'preview_fps': 5 if self.h264 else self.max_fps,
                      'dma_input': self.mode == 'hardware' and not self.test_source and not self.mpp}
         self.process = None
 
@@ -189,8 +199,9 @@ class VideoHub:
                 resources.enter_context(exclusive_lock(self.runtime, 'video', timeout=0))
                 owns_capture = True
                 if self.test_source:
-                    width, height = 1920, 1080
-                    device, input_width, input_height = None, width, height
+                    input_width, input_height = 1920, 1080
+                    width, height = output_size(input_width,input_height,self.max_width,self.max_height)
+                    device = None
                     source = ['videotestsrc', 'is-live=true', 'pattern=smpte', '!',
                               'video/x-raw,format=BGR,width=1920,height=1080,framerate=30/1']
                 else:
@@ -200,9 +211,7 @@ class VideoHub:
                     h = re.search(r'Active height:\s*(\d+)', timings)
                     if not w or not h or not int(w[1]) or not int(h[1]):
                         raise RuntimeError('HDMI 尚未锁定有效画面')
-                    scale = min(1, 1920 / int(w[1]), 1080 / int(h[1]))
-                    width = max(96, int(int(w[1]) * scale) // 16 * 16)
-                    height = max(32, int(int(h[1]) * scale) // 8 * 8)
+                    width, height = output_size(int(w[1]),int(h[1]),self.max_width,self.max_height)
                     # Vendor HDMI RX tracks timings itself and rejects S_DV_TIMINGS.
                     if not self.mpp:
                         await command('v4l2-ctl', '-d', device, '--set-dv-bt-timings=query')
@@ -219,7 +228,7 @@ class VideoHub:
                     self.info.update(input_width=int(w[1]), input_height=int(h[1]), input_format='BGR3')
                     input_width, input_height = int(w[1]), int(h[1])
                 self.info.update(width=width, height=height)
-                if self.webrtc:
+                if self.h264:
                     args = h264_pipeline(device, input_width, input_height, width, height,
                                          self.max_fps, self.bitrate, self.runtime / 'frame.jpg')
                 elif self.mpp:
@@ -239,7 +248,7 @@ class VideoHub:
                         del errors[:-4000]
 
                 error_task = asyncio.create_task(drain_errors())
-                if self.webrtc:
+                if self.h264:
                     snapshot_task = asyncio.create_task(self._read_snapshots())
                     await self._read_h264(process)
                 start, count = time.monotonic(), 0

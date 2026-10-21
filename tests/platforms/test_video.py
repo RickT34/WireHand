@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from kvm_rock5b_plus.video import VideoHub, read_frame, h264_pipeline
+from kvm_rock5b_plus.video import VideoHub, read_frame, h264_pipeline, output_size
 from kvm_automation.runtime import exclusive_lock
 from kvm_rock5b_plus.hdmi import PROFILE, validate_edid
 from kvm_rock5b_plus.snapshot import screenshot
@@ -67,6 +67,22 @@ class EDIDTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_remote_profile_caps_resolution_and_preserves_portrait_layout(self):
+        self.assertEqual(output_size(1920,1080,1280,720),(1280,720))
+        self.assertEqual(output_size(1080,1920,1280,720),(400,720))
+        self.assertEqual(output_size(640,480,1280,720),(640,480))
+        with patch.dict(os.environ,{},clear=True):
+            hub=VideoHub(Path('/unused'))
+            self.assertEqual((hub.max_width,hub.max_height,hub.max_fps,hub.bitrate),(1280,720,60,2500000))
+
+    def test_720p60_pipeline_bounds_gop_and_bitrate_and_advertises_suitable_level(self):
+        cmd=h264_pipeline('/dev/video0',1920,1080,1280,720,60,2500000,'/tmp/frame.jpg')
+        self.assertEqual(cmd[cmd.index('-g')+1],'30')
+        self.assertEqual(cmd[cmd.index('-level:v')+1],'3.2')
+        self.assertEqual(cmd[cmd.index('-b:v')+1],'2500000')
+        self.assertEqual(cmd[cmd.index('-maxrate')+1],'3333333')
+        self.assertIn('scale_rkrga=w=1280:h=720',cmd[cmd.index('-filter_complex')+1])
+
     def test_vendor_pipeline_uses_hw_encoder_without_b_frames(self):
         cmd = h264_pipeline('/dev/video0',1920,1080,1920,1080,60,6000000,'/tmp/frame.jpg')
         self.assertIn('h264_rkmpp',cmd)

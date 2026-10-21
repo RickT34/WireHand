@@ -31,7 +31,7 @@ with Computer.connect(backend="rock5b-plus") as computer:
 ```sh
 uv sync --all-packages --frozen
 uv run python -m unittest discover -s tests -t . -q
-node --test tests/app/test_frontend.cjs
+node --test tests/app/test_*.cjs
 uv build --all-packages
 ```
 
@@ -62,6 +62,7 @@ uv run kvm-web --backend rock5b-plus
 | `KVM_PORT` | `8080` | 网页端口 |
 | `KVM_RECORDINGS` | `~/.local/share/kvm-mcp/recordings` | 网页录制的持久保存目录 |
 | `KVM_HOSTS` | `localhost,127.0.0.1` | 允许访问的主机名/IP，不含端口，逗号分隔 |
+| `KVM_TRUSTED_PROXIES` | 空 | 信任转发头的代理 IP/CIDR，逗号分隔；Nginx 同机时可设 `127.0.0.1` |
 
 局域网地址、板卡名字和视频编码器路径都不再硬编码在网页应用里。系统服务、SSH MCP 示例和 ROCK 5B+ 参数见 [平台部署说明](docs/rock5b-plus/README.md)。
 
@@ -79,9 +80,17 @@ uv run kvm-inspect /path/to/screenshot.jpg --output artifacts/vision/my-screen
 
 网页默认只查看。点击“接管控制”后浏览器独占输入，MCP 仍可查询状态与截图。连接断开或心跳超时后自动释放键鼠、结束接管并恢复 MCP，无响应连接最多约 7 秒后释放。释放失败也会结束接管并记录错误；服务重启会尝试重置旧会话并清理遗留标记。MCP 和网页应使用相同系统用户及运行目录。当前进程锁依赖 Linux/POSIX `flock`。
 
-网页支持 JPEG 和可选的 H.264 WebRTC。平台提供编码后的帧，应用负责协商、RTP 封装和每个观看者的背压。平台仅实现 JPEG 时，网页自动提供 JPEG 路径。
+网页默认使用同源 H.264 WebSocket：HTTPS 页面走 WSS，HTTP 页面走 WS，可直接经过 Nginx 反代或 SSH TCP 隧道。浏览器优先通过 WebCodecs 立即解码绘制；不支持时自动改用 fMP4/MSE。平台仅提供编码帧，传输、封装、播放和观看者背压都在应用层。手动选择 WebRTC 可继续使用局域网 UDP 路径。
 
-通过 SSH 本地端口转发访问时，localhost/127.0.0.1 地址默认使用 JPEG。WebRTC 只有实际出帧后才替换备用画面，连接失败后保持 JPEG，直到手动重试。JPEG 按客户端拉取节奏限制为最高 5fps、约 5Mbps 图像负载预算，适合 10Mbps 左右的链路。见 [SSH 与远程画面](docs/REMOTE_VIEWING.md)。
+视频实际出帧后才关闭 JPEG 备用画面。队列积压时丢弃旧预测链并等待关键帧，客户端停止确认时关闭连接，避免不断累积延迟。ROCK 默认输出上限为 720p60、目标 2.5Mbps，可调整分辨率与码率。JPEG 备用路径仍限制为最高 5fps、约 5Mbps 图像负载。见 [远程视频与 Nginx SSL 配置](docs/REMOTE_VIEWING.md)。
+
+无板卡也可启动带移动标记的本地 H.264 控制台，测试 WebCodecs/MSE、登录和 WebSocket（不会打开 HID）：
+
+```sh
+uv run python examples/video_transport_demo.py --image /path/to/screenshot.jpg
+```
+
+打开 `http://127.0.0.1:8800/`；密码写入 `/tmp/kvm-h264-demo-token`。省略 `--image` 使用合成背景。
 
 ## 继续开发
 

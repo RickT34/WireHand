@@ -3,11 +3,11 @@ const screen = $('screen'), ctx = screen.getContext('2d', {alpha:false});
 const liveVideo=$('rtc-video');
 let display=screen, peer=null, rtcId=null, rtcStarting=false, rtcGeneration=0, rtcRetryAt=0, preferJPEG=false, rtcActive=false, rtcSuppressed=false;
 let rtcFrames=0, previousRtcStats=null, rtcRtt=null;
+let fastPlayer=null, fastActive=false, fastBlocked=false, fastMode='', fastStats={}, fastCount=0, transportMode='auto';
 let rtcDiagnostic={stage:'尚未协商'}, lastRTCFailure=null;
 let input, video, controlling=false, queue=[], busy=false, lastState=null, lastFrame=0, frames=0, fps=0;
 let recordingActive=false, recordingPending=null;
 const JPEG_BUDGET_BPS=5000000, JPEG_MAX_FPS=5;
-const loopbackHost=['localhost','127.0.0.1','[::1]','::1'].includes(location.hostname || location.host.split(':')[0]);
 const wsURL = path => `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${path}`;
 const notice = message => {$('notice').textContent=message;};
 function setControl(active){
@@ -50,17 +50,17 @@ function connectInput(){
   input.onerror=()=>input.close();
 }
 function connectVideo(){
-  if(rtcActive || (video && video.readyState<2))return;
+  if(rtcActive || fastActive || (video && video.readyState<2))return;
   const socket=new WebSocket(wsURL('/ws/video'));video=socket;socket.binaryType='arraybuffer';
   let requestedAt=0;
-  const requestNext=()=>{if(socket===video && !rtcActive && socket.readyState===WebSocket.OPEN){
+  const requestNext=()=>{if(socket===video && !rtcActive && !fastActive && socket.readyState===WebSocket.OPEN){
     requestedAt=performance.now();socket.send('next');}};
   socket.onopen=requestNext;
   socket.onmessage=async event=>{
     try{
-      if(typeof event.data!=='string' && socket===video && !rtcActive){
+      if(typeof event.data!=='string' && socket===video && !rtcActive && !fastActive){
         const bitmap=await createImageBitmap(new Blob([event.data],{type:'image/jpeg'}));
-        if(socket!==video || rtcActive){bitmap.close();return;}
+        if(socket!==video || rtcActive || fastActive){bitmap.close();return;}
         if(screen.width!==bitmap.width || screen.height!==bitmap.height){screen.width=bitmap.width;screen.height=bitmap.height;}
         ctx.drawImage(bitmap,0,0);bitmap.close();lastFrame=performance.now();frames++;
         display=screen;screen.hidden=false;liveVideo.hidden=true;
@@ -74,6 +74,38 @@ function connectVideo(){
   socket.onclose=()=>{if(socket===video){video=null;setTimeout(connectVideo,1500);}};
   socket.onerror=()=>socket.close();
 }
+function stopFast(){
+  const old=fastPlayer;fastPlayer=null;fastActive=false;fastMode='';fastCount=0;
+  if(old)old.stop();
+  liveVideo.hidden=true;screen.hidden=false;display=screen;
+}
+function startFast(){
+  if(fastPlayer || fastBlocked || preferJPEG || transportMode==='webrtc' || typeof H264Player==='undefined')return;
+  const player=new H264Player({url:wsURL('/ws/h264'),canvas:screen,video:liveVideo,
+    mode:transportMode==='mse'?'mse':'auto',
+    onStatus:info=>{
+      if(player!==fastPlayer)return;
+      fastStats={...fastStats,...info};showRTCDiagnostic();
+      if(info.stage){fastActive=false;liveVideo.hidden=true;screen.hidden=false;display=screen;connectVideo();}
+    },
+    onFrame:info=>{
+      if(player!==fastPlayer)return;
+      const gained=!fastActive;fastActive=true;fastMode=info.mode;
+      fastStats={...fastStats,...info,stage:'播放中',error:null};
+      stopJPEG();lastFrame=performance.now();frames+=Math.max(0,info.frames-fastCount);fastCount=info.frames;
+      display=info.mode==='webcodecs'?screen:liveVideo;
+      screen.hidden=display!==screen;liveVideo.hidden=display!==liveVideo;
+      display.classList.add('live');$('empty').hidden=true;
+      if(gained){notice('');if(controlling)display.focus({preventScroll:true});}
+    },
+    onError:message=>{
+      if(player!==fastPlayer)return;
+      fastStats={...fastStats,error:message,stage:'JPEG 回退'};stopFast();fastBlocked=true;connectVideo();
+      notice(`H.264 播放失败：${message}，使用 JPEG 兼容画面。`);showRTCDiagnostic();
+    }
+  });
+  fastPlayer=player;player.start();
+}
 function stopJPEG(){const old=video;video=null;if(old){old.onclose=null;old.close();}}
 function stopRTC(){
   rtcGeneration++;rtcStarting=false;rtcActive=false;rtcFrames=0;previousRtcStats=null;rtcRtt=null;
@@ -83,7 +115,7 @@ function stopRTC(){
 }
 function showRTCDiagnostic(){
   $('diagnostics').textContent=JSON.stringify({server:lastState?.video?.error||'',rtc:rtcDiagnostic,
-    lastFailure:lastRTCFailure},null,2);
+    lastFailure:lastRTCFailure,h264:fastStats},null,2);
 }
 function failureReason(){
   if(rtcDiagnostic.connection!=='connected')return `WebRTC 媒体连接未建立（ICE: ${rtcDiagnostic.ice||'未知'}），尚未进入解码`;
@@ -106,7 +138,7 @@ function reportRTC(reason){
 function rtcFailed(message){
   lastRTCFailure={message,...rtcDiagnostic};reportRTC(message);showRTCDiagnostic();
   stopRTC();rtcSuppressed=true;connectVideo();
-  notice(`${message}，使用兼容画面。需要重试时可重新选择“自动 · WebRTC”。`);
+  notice(`${message}，使用兼容画面。需要重试时可重新选择“直连 · WebRTC”。`);
 }
 async function startRTC(){
   if(peer || rtcStarting || preferJPEG || rtcSuppressed || performance.now()<rtcRetryAt)return;
@@ -197,7 +229,8 @@ async function refresh(){
     if(response.status===401){location.reload();return;}
     if(!response.ok)throw new Error('状态查询失败');
     const state=await response.json();lastState=state;setRecording(state.recording);
-    if(state.video.transport==='webrtc' && !preferJPEG)startRTC();
+    if(transportMode==='webrtc')startRTC();
+    else if(state.video.transports?.includes('h264-ws'))startFast();
     $('connection-dot').classList.add('online');$('connection-label').textContent='控制台已连接';
     $('video-status').textContent=state.video.signal?'视频 · 有信号':'视频 · 无信号';
     $('video-status').classList.toggle('good',state.video.signal);
@@ -209,8 +242,8 @@ async function refresh(){
     if(!controlling)$('mode-label').textContent=state.control.manual?'仅查看 · MCP 已暂停':'仅查看';
     $('hint').textContent=controlling?'正在手动控制，MCP 输入已暂停。切换窗口时会自动释放按键。':
       state.control.manual?'另一个浏览器正在控制，MCP 输入暂停。连接断开后自动恢复。':'默认仅查看。接管后点击画面，即可使用鼠标和键盘。';
-    $('encoder-label').textContent=rtcActive?'H.264 · WebRTC':'JPEG · 逐帧画面';
-    $('video-info').textContent=state.video.signal?`${state.video.width} × ${state.video.height} · ${state.video.test_source?'测试画面 · ':''}${rtcActive?'H.264 / WebRTC':'JPEG'+(state.video.transport==='webrtc'?' · 兼容画面':'')}${rtcActive&&rtcRtt!==null?' · 链路往返 '+rtcRtt+' ms':''}`:'等待视频信号';
+    $('encoder-label').textContent=fastActive?`H.264 · ${fastMode==='webcodecs'?'WebCodecs':'MSE'}`:rtcActive?'H.264 · WebRTC':'JPEG · 逐帧画面';
+    $('video-info').textContent=state.video.signal?`${state.video.width} × ${state.video.height} · ${state.video.test_source?'测试画面 · ':''}${fastActive?'H.264 / '+(location.protocol==='https:'?'WSS':'WS'):rtcActive?'H.264 / WebRTC':'JPEG · 兼容画面'}${rtcActive&&rtcRtt!==null?' · 链路往返 '+rtcRtt+' ms':''}`:'等待视频信号';
     showRTCDiagnostic();
     if(!state.video.signal || performance.now()-lastFrame>3000){
       screen.classList.remove('live');
@@ -228,10 +261,10 @@ $('record-toggle').onclick=()=>{if(recordingPending!==null)return;notice('');rec
 $('take').onclick=()=>{notice('');send({type:'take'});};
 $('give').onclick=()=>{notice('');send({type:'give'});};
 $('release').onclick=()=>send({type:'release'});
-$('transport').onchange=event=>{preferJPEG=event.target.value==='jpeg';stopRTC();connectVideo();if(!preferJPEG){rtcSuppressed=false;rtcRetryAt=0;startRTC();}};
+$('transport').onchange=event=>{transportMode=event.target.value;preferJPEG=transportMode==='jpeg';stopFast();stopRTC();fastBlocked=false;rtcSuppressed=false;rtcRetryAt=0;connectVideo();if(transportMode==='webrtc')startRTC();else startFast();};
 $('shortcut').onchange=event=>{if(event.target.value)send({type:'shortcut',name:event.target.value});event.target.value='';};
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('screen-shell').requestFullscreen();}catch(e){notice(e.message);}};
-$('logout').onclick=async()=>{input?.close();stopJPEG();stopRTC();await fetch('/logout',{method:'POST'});location.reload();};
+$('logout').onclick=async()=>{input?.close();stopFast();stopJPEG();stopRTC();await fetch('/logout',{method:'POST'});location.reload();};
 function pointer(event, wheel=0, motion=false){
   if(!controlling)return;event.preventDefault();const rect=display.getBoundingClientRect();
   send({type:'pointer',x:Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width)),
@@ -254,8 +287,7 @@ surface.addEventListener('blur',release);
 function release(){if(controlling)send({type:'release'});}
 window.addEventListener('blur',release);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
-window.addEventListener('pagehide',()=>{input?.close();stopJPEG();stopRTC();});
+window.addEventListener('pagehide',()=>{input?.close();stopFast();stopJPEG();stopRTC();});
 setInterval(()=>{if(!busy && !queue.length)send({type:'ping'});},2000);
 setInterval(()=>{fps=frames;frames=0;$('rate').textContent=`${rtcActive?rtcFrames:fps} fps`;rtcStats();},1000);
-if(loopbackHost){preferJPEG=true;$('transport').value='jpeg';notice('本地转发地址默认使用兼容画面，适用于 SSH 隧道。');}
 setControl(false);connectInput();connectVideo();refresh();

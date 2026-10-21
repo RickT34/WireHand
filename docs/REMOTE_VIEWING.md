@@ -1,4 +1,65 @@
-# SSH 与远程画面
+# 远程视频、SSH 与 Nginx SSL
+
+网页默认使用 **H.264 over WebSocket**。HTTPS 页面自动使用 WSS；视频、键鼠、状态和录制下载均走网页的同一个域名与端口，不依赖 UDP、STUN 或 TURN。平台适配器输出 H.264 Annex-B，应用层负责传输与播放。
+
+## 浏览器播放与延迟策略
+
+- “自动 · 低延迟 H.264”：优先 WebCodecs 解码后直接绘制 canvas。WebCodecs 不可用或不支持编码配置时自动转为 MSE。
+- “兼容 · H.264”：服务端将相同编码帧重新封装为 fMP4，浏览器 MSE 播放，不进行二次编码。封装有约一帧等待；播放器控制缓冲并追赶最新画面。
+- “直连 · WebRTC”：保留原来的 host ICE / UDP 路径，适合局域网或已有可用媒体网络的场景。Nginx 普通 HTTP 反代和 `ssh -L` 不转发这条 UDP 媒体链路。
+- “备用 · JPEG”：只拉取最新帧，最高 5fps、约 5Mbps 图像负载预算。
+
+首次连接、切换和恢复时保留 JPEG，H.264 实际出帧后才切换。H.264 播放失败会尝试 MSE 或有限次数重连，随后保持 JPEG；选择视频模式可手动重试。刷新页面会重新尝试默认模式。WebCodecs 通常要求 HTTPS 或本机 localhost 安全上下文；普通远程 HTTP 可以使用浏览器支持的 MSE。
+
+WS/WSS 每个观看者有独立背压：
+
+- 待发送队列最多两帧；队列溢出或帧等待超过 150ms 时丢弃旧预测链，等待新 IDR，避免发送损坏的 P 帧链。
+- 最多八个未确认消息，常规发送窗口为 128KiB。超过窗口大小的单帧仅在窗口清空后发送，单帧硬上限 1MiB。
+- WebCodecs 在绘制后 ACK，解码队列达到两帧时重同步。MSE 在分片追加完成后 ACK，并移除旧播放缓冲；落后超过 250ms 时向缓冲末尾跳转。
+- 1.5 秒没有确认、发送阻塞或连接失效时关闭媒体连接。观看者最多四个。键鼠使用独立 WebSocket，但仍受底层网络带宽影响。
+
+这些是应用层限制，不是端到端延迟保证。TCP 丢包仍会触发重传等待，SSH 隧道也可能把视频与输入放在同一个 TCP 连接里。画面复杂度、RTT、编码器和浏览器会影响实际反馈速度。
+
+## ROCK 默认编码配置
+
+默认按原比例缩放到不超过 1280×720、最高 60fps，目标码率 2.5Mbps，无 B 帧，关键帧间隔约半秒。宽高按硬件要求向下对齐到 16×8。码率上限配置为目标的 4/3；真实硬件是否严格遵守需实机确认。
+
+```ini
+KVM_TRANSPORT=h264
+KVM_MAX_WIDTH=1280
+KVM_MAX_HEIGHT=720
+KVM_MAX_FPS=60
+KVM_H264_BITRATE=2500000
+```
+
+更窄带宽可降低宽高、码率或帧率。只有 JPEG 的平台仍可运行网页；不会获得 H.264 传输。共享 JPEG 预览、网页录制截图和 MCP 共享截图也使用当前采集输出分辨率；以上上限不改变目标机 HDMI 模式。
+
+## Nginx HTTPS/WSS
+
+完整模板：[deploy/nginx/kvm.conf](../deploy/nginx/kvm.conf)。将其放入 Nginx 的 `http {}` 包含目录，替换域名、证书文件和 upstream。当前部署要求独立域名根路径，不支持挂在 `/kvm/` 子路径。
+
+同机 Nginx 的应用环境变量：
+
+```ini
+KVM_BIND=127.0.0.1
+KVM_PORT=8080
+KVM_HOSTS=kvm.example.com,localhost,127.0.0.1
+KVM_TRUSTED_PROXIES=127.0.0.1
+```
+
+继续使用原有 `KVM_TOKEN`。`KVM_HOSTS` 是浏览器访问的域名/IP，不含端口。`KVM_TRUSTED_PROXIES` 是应用实际看到的代理源 IP/CIDR，默认空，不接受 `*`。如果代理位于另一台机器，将应用绑定到可达内网地址，并只填写那台代理的地址；同时限制应用端口只对需要的内网来源开放。
+
+模板显式转发 WebSocket Upgrade、原始 Host 与 `X-Forwarded-Proto`，关闭代理缓冲，并在入口代理覆盖客户端自带的转发头。应用仅信任配置的代理地址，因此在 TLS 终止后仍能校验 HTTPS Origin、建立 WSS 会话并设置 Secure 登录 Cookie。不要把外部 Host 改成 upstream 地址。
+
+替换配置后检查并加载：
+
+```sh
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl restart kvm-web
+```
+
+访问 `https://kvm.example.com/` 并刷新页面。只需为此服务开放 HTTPS 端口；此模式的视频不需要额外 UDP 端口。模板不会申请证书或开放防火墙。
 
 ## SSH 本地转发
 
@@ -6,33 +67,45 @@
 ssh -N -L 127.0.0.1:18080:127.0.0.1:8080 r5p
 ```
 
-在建立隧道的电脑上打开 `http://127.0.0.1:18080/`，使用已有控制台密码登录。`r5p` 是本项目的 SSH 主机别名，可按实际 SSH 配置替换。
+打开 `http://127.0.0.1:18080/`，默认 H.264/WS 直接通过隧道。应用的 `KVM_HOSTS` 需包含 `127.0.0.1`。SSH 隧道未终止 HTTPS，不需要配置 `KVM_TRUSTED_PROXIES`。
 
-普通 `ssh -L` 转发 TCP。当前 WebRTC 使用 host ICE candidates 和动态 UDP 媒体端口，没有 STUN/TURN；HTTP 信令可以通过隧道成功，视频 UDP 连接仍可能失败。JPEG 和键鼠 WebSocket 使用同一个网页地址，因此可以走现有隧道。
+## 本地调试与验收
 
-## 当前页面策略
+无板卡时启动软件编码测试源：
 
-- localhost、127.0.0.1 和 IPv6 回环地址默认选择“兼容 · JPEG”。
-- 其他地址可以先尝试 WebRTC；收到 `ontrack` 只表示媒体轨道协商完成，不代表视频可用。此时保留 JPEG 连接和画面。
-- 收到实际视频帧或解码帧数增长后，才切换到 video 并关闭 JPEG。
-- WebRTC 失败后保持 JPEG，不再每隔十五秒自动尝试并打断画面。需要重试时，在视频模式中重新选择“自动 · WebRTC”。
-- JPEG 每次只拉取一帧，下一次请求同时受最高 5fps 和约 5Mbps 图像负载预算约束；传输和解码耗时计入间隔。
+```sh
+uv sync --all-packages --frozen
+uv run python examples/video_transport_demo.py --image /path/to/screenshot.jpg
+```
 
-预算针对 JPEG 负载，不是精确的网络整形器，也不包含 SSH/TCP 开销。以本次约 218KB/帧的真实 1080p 画面为例，目标约 2.9fps，给 10Mbps 链路保留操作和协议开销余量。图像仍保留原采集分辨率。
+打开 `http://127.0.0.1:8800/`，密码在 `/tmp/kvm-h264-demo-token`。省略图像参数使用合成背景。图上叠加移动标记与帧计数；演示不会打开物理 HID。用 `--trusted-proxy 127.0.0.1` 可测试同机 Nginx TLS 终止，Nginx upstream 改为 `127.0.0.1:8800`。
 
-更新页面脚本后需刷新浏览器。页面本身已经可以打开、但 WebRTC 提示连接中断时，也可直接选择“兼容 · JPEG”。
+协议探针会登录并实际解码视频：
 
-## 2026-10-20 验证
+```sh
+uv run python scripts/smoke_h264.py --origin http://127.0.0.1:8800 --token-file /tmp/kvm-h264-demo-token
+uv run python scripts/smoke_h264.py --origin http://127.0.0.1:8800 --token-file /tmp/kvm-h264-demo-token --format mp4
+uv run python scripts/smoke_h264.py --origin https://kvm.example.com --token-file web-access.txt --seconds 10
+uv run python scripts/smoke_h264.py --origin https://kvm.example.com --token-file web-access.txt --slow
+```
 
-用户路径为 SSH 隧道，约 10Mbps。板端记录浏览器 `ice=failed`、`bytesReceived=0`；同时共享 JPEG 持续刷新。发现页面在 `ontrack` 时过早关闭 JPEG，并在失败后反复重试，导致等待画面或反复空白。
+`--slow` 故意不 ACK，验证发送窗口有界且连接超时关闭。自建测试 CA 使用 `--ca-file /path/to/ca.pem`，保留证书验证。`--bandwidth-mbps 10 --ack-delay-ms 80` 在客户端模拟消费速度与额外 ACK 延迟，不等同于网络层带宽整形或 WAN 测试。`--output artifacts/wss/result.json` 保存结果，不含密码或 Cookie。
 
-修复已同步到本地源码与板端 `/opt/kvm-mcp/static/app.js`。板端仅替换静态脚本，没有重启采集服务或修改网络、防火墙。
+Python 探针验证 Annex-B/fMP4 解码和认证；浏览器播放兼容性需在实际控制台中另外确认。前端与服务端回归：
 
-- 直接 HTTP/WebSocket：20 帧真实 JPEG 正常接收、解码。
-- 实际建立 `127.0.0.1:18080` SSH 转发，通过该地址完成登录、WebSocket 和 JPEG 接收。
-- 浏览器通过这条隧道打开控制台，默认选中 JPEG，实际显示 1920×1080 画面，页面帧率约 3fps。
-- 前端回归覆盖协商期间保留 JPEG、失败后不自动重试、手动重试、回环地址默认模式、按帧大小节流，以及旧异步回调不影响新连接。
+```sh
+uv run python -m unittest discover -s tests -t . -q
+node --test tests/app/test_*.cjs
+```
 
-本次还发现 Python WebRTC 测试接收器的默认 128 包抖动缓冲可能容纳不下 MPP 的大 IDR 帧：网络零丢包但帧头被缓冲丢弃，无法解码。测试脚本改为默认 1024 包，可用 `--jitter-packets` 调整；这是诊断接收器设置，不是浏览器配置。调整后，两次局域网短测分别解码约 58fps 和 25fps，均无网络丢包，确认服务端编码可解码；这些短测不构成稳定帧率保证。
+## 本次验证范围（2026-10-21）
 
-截图与诊断产物保存在被 Git 忽略的 `artifacts/video-diagnosis/`。这不是对用户实际 WAN 链路做 10Mbps 流量整形后的性能测量。
+板子未开机，按要求仅本地测试。使用此前保存的屏幕截图叠加移动标记，软件编码为 1280×720 H.264；不是实时 HDMI 采集。
+
+- 浏览器控制台分别验证 WebCodecs 与 MSE 出帧，保留录制栏和输入状态。
+- 本地独立 Nginx 实例终止 TLS；探针显式信任临时证书，验证 HTTPS 登录、Secure Cookie、WSS Upgrade 和两种封装的实际解码。
+- 5 秒 WSS 探针：Annex-B 解码约 60fps，负载约 2.24Mbps；fMP4 解码约 59fps，负载约 2.26Mbps。
+- 10 秒测试加入 10Mbps 消费限速与 80ms ACK 延迟：解码约 60fps，负载约 2.40Mbps，最后 ACK 往返约 85ms。ACK 指标包含客户端处理/人工延迟，不能当作操作到画面的延迟。
+- 无 ACK 客户端验证有界发送与超时断开；原始 JSON 与浏览器截图位于被 Git 忽略的 `artifacts/wss/`。
+
+新编码参数尚未在 ROCK MPP 上运行，实际 WAN、显示器到浏览器的延迟、目标机键鼠反馈和不同浏览器仍待实机验收。2026-10-20 的 SSH/JPEG 诊断证据保存在 `artifacts/video-diagnosis/`，描述的是当时的旧播放策略。

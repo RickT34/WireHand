@@ -550,6 +550,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiortc" },
     { name = "anyio" },
+    { name = "av" },
     { name = "kvm-automation" },
     { name = "mcp" },
     { name = "starlette" },
@@ -565,6 +566,7 @@ rock5b-plus = [
 requires-dist = [
     { name = "aiortc", specifier = ">=1.14,<2" },
     { name = "anyio", specifier = ">=4,<5" },
+    { name = "av", specifier = ">=14,<18" },
     { name = "kvm-automation", editable = "packages/automation" },
     { name = "kvm-rock5b-plus", marker = "extra == 'rock5b-plus'", editable = "packages/rock5b-plus" },
     { name = "mcp", specifier = ">=1.12,<2" },
