@@ -14,7 +14,7 @@ def main(argv=None, *, service=None):
     else:
         parser.set_defaults(service=service)
     parser.add_argument('--backend', default=os.environ.get('KVM_BACKEND'),
-                        help='rock5b-plus, image or module:factory; alternatively set KVM_BACKEND')
+                        help='docker-desktop, rock5b-plus, image or module:factory; alternatively set KVM_BACKEND')
     parser.add_argument('--runtime', type=Path,
                         default=Path(os.environ.get('KVM_RUNTIME', '/run/kvm-mcp')),
                         help='Shared runtime directory for all processes controlling this target')

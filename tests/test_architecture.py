@@ -63,6 +63,7 @@ assert not any(n.startswith('kvm.platforms') for n in sys.modules)
         self.assert_isolated_import('''import sys
 from kvm.platforms.rock5b_plus.backend import Rock5BPlusBackend
 from kvm.platforms.rock5b_plus.video import VideoHub
+from kvm.platforms.docker_desktop.backend import DockerDesktopBackend
 assert not any(n.startswith(('kvm.automation', 'kvm.vision', 'kvm.interfaces')) for n in sys.modules)
 assert not any(n.split('.')[0] in ('mcp', 'starlette', 'aiortc') for n in sys.modules)
 ''')

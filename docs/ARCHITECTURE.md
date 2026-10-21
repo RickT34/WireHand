@@ -29,6 +29,7 @@ src/kvm/
 ├── platforms/
 │   ├── registry.py             内置名称与 module:factory 的延迟加载
 │   ├── image.py                无硬件的只读图片后端
+│   ├── docker_desktop/         Xvfb 截图、XTEST 输入、JPEG 预览
 │   └── rock5b_plus/            HDMI、HID、编码、截图、gadget、EDID
 ├── interfaces/
 │   ├── mcp/server.py          MCP 工具与结果格式
@@ -114,6 +115,8 @@ kvm-mcp --backend kvm.platforms.my_platform.backend:create_backend
 ```
 
 常用内置平台可在 `platforms/registry.py` 的 `BUILTINS` 中增加一个名称，不需要新的安装包或 entry point。初始化脚本、驱动配置和专用资源放在平台目录。
+
+`docker-desktop` 是容器内的 X11 适配器，构造时不访问显示器。Compose 负责桌面生命周期和数据卷；平台通过 XTEST 发送输入、读取 Xvfb 根窗口生成 JPEG，以 5fps 的最新帧源接入现有网页。MCP 通过 `desktopctl mcp` 在同一容器内运行，共用输入锁；不额外开放 VNC 或自建控制权协议。部署配置位于 `deploy/docker-desktop/`，见 [Docker 桌面](DOCKER_DESKTOP.md)。
 
 扩展视觉检测时，实现 `vision/models.py` 的 `Detector.detect(image)`，向 `Inspector` 或 `Recorder` 注入；扩展录制动作时，同时更新 `recording/schema.py`、事件归并及 `Computer` 的执行方法。脚本生成器只输出可编辑的 Python 调用，不依赖 MCP、HTTP 或模型服务。
 

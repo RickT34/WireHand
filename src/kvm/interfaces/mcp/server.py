@@ -11,7 +11,7 @@ from kvm.automation.inspection import Inspector
 def create_mcp(backend: Backend, gate: InputGate) -> FastMCP:
     vision = Inspector(backend, gate)
     mcp = FastMCP('KVM', instructions=(
-        'Controls the physical device connected to the selected KVM platform. '
+        'Controls the device or desktop provided by the selected KVM platform. '
         'Check status and screenshot before acting. Coordinates are normalized to the captured display. '
         'Text input requires a US keyboard layout and suitable target input mode.'
         ' Prefer inspect_screen and click_target for visual selection. '

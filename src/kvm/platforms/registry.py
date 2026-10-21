@@ -3,6 +3,7 @@ from importlib import import_module
 from pathlib import Path
 
 BUILTINS = {
+    'docker-desktop': 'kvm.platforms.docker_desktop.backend:DockerDesktopBackend',
     'rock5b-plus': 'kvm.platforms.rock5b_plus.backend:Rock5BPlusBackend',
     'image': 'kvm.platforms.image:ImageBackend',
 }

@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=2,<3",
     "opencv-python-headless>=4.10,<5",
     "pillow>=11,<13",
+    "python-xlib>=0.33,<1",
     "starlette>=0.40,<2",
     "uvicorn[standard]>=0.30,<1",
 ]

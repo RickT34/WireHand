@@ -1,6 +1,8 @@
 include requirements.txt uv.lock
+include desktopctl .dockerignore
 recursive-include docs *.md
 recursive-include deploy *.service *.json *.example *.conf
+recursive-include deploy/docker-desktop Dockerfile *.yaml *.sh *.py
 recursive-include scripts *.py
 recursive-include tests *.py *.cjs
 recursive-include examples *.py

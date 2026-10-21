@@ -7,7 +7,7 @@
 | `core/` | 设备接口、通用帧分发、输入互斥与控制权 |
 | `vision/` | 图像检测、目标匹配、分区与标记渲染 |
 | `automation/` | Python 操作 API、快照与目标点击、录制和重放 |
-| `platforms/` | ROCK 5B+ 硬件适配、离线图片后端、后端注册 |
+| `platforms/` | ROCK 5B+ 硬件适配、Docker 桌面、离线图片后端、后端注册 |
 | `interfaces/` | MCP 工具与网页的认证、路由、视频传输和前端 |
 | `cli/`、`factory.py` | 命令行、配置读取与实例组装 |
 
@@ -43,6 +43,15 @@ uv build
 
 ## 启动
 
+无需板卡的持久 Docker 桌面（Xfce + Firefox，复用网页/MCP）：
+
+```sh
+./desktopctl init
+./desktopctl up
+```
+
+打开 `http://127.0.0.1:18810/`，使用 `deploy/docker-desktop/.env` 中的 `KVM_TOKEN` 登录。用户主目录、工作文件和录制分别保存在独立命名卷中，重建容器仍保留。启动、备份与 MCP 配置见 [Docker 桌面说明](docs/DOCKER_DESKTOP.md)。
+
 在已经配置好硬件的板子上：
 
 ```sh
@@ -59,7 +68,7 @@ uv run kvm-web --backend rock5b-plus
 
 | 应用配置 | 默认值 | 含义 |
 | --- | --- | --- |
-| `KVM_BACKEND` | 无 | `rock5b-plus`、`image` 或 `module:factory` |
+| `KVM_BACKEND` | 无 | `rock5b-plus`、`docker-desktop`、`image` 或 `module:factory` |
 | `KVM_RUNTIME` / `--runtime` | `/run/kvm-mcp` | 同一设备的 SDK、MCP 与网页必须共用，包含输入锁和接管标记 |
 | `KVM_TOKEN` | 无 | 网页密码，至少 20 个字符 |
 | `KVM_BIND` | `0.0.0.0` | 网页监听地址 |
@@ -100,6 +109,7 @@ uv run python examples/video_transport_demo.py --image /path/to/screenshot.jpg
 
 - [自动化库与录制脚本](docs/AUTOMATION.md)
 - [架构、接口约定与新增平台](docs/ARCHITECTURE.md)
+- [Docker 持久桌面与 MCP 接入](docs/DOCKER_DESKTOP.md)
 - [视觉定位与无硬件调试](docs/VISUAL_TARGETING.md)
 - [ROCK 5B+ 安装与部署](docs/rock5b-plus/README.md)
 - [ROCK 5B+ MPP 驱动部署](docs/rock5b-plus/MPP_DEPLOYMENT.md)
