@@ -1,21 +1,25 @@
 # KVM MCP
 
-通过独立 Python 库、MCP 或网页控制台查看、操作被控设备。源码分成三个可单独打包的项目：
+通过 Python API、MCP 或网页控制台查看、操作被控设备。整个仓库只有一个安装包 `kvm-mcp`，代码统一放在 `src/kvm/`，按职责分目录：
 
-| 包 | 代码 | 职责 |
-| --- | --- | --- |
-| `kvm-automation` | `packages/automation/` | Python API、视觉定位、录制、自动等待、重放、脚本生成、设备接口与控制权 |
-| `kvm-rock5b-plus` | `packages/rock5b-plus/` | ROCK 5B+ 的 HDMI、编码、截图、HID、gadget 与 EDID |
-| `kvm-mcp` | `src/kvm_mcp/` | MCP 工具与网页应用、认证、WebSocket、WebRTC |
+| 目录 | 职责 |
+| --- | --- |
+| `core/` | 设备接口、通用帧分发、输入互斥与控制权 |
+| `vision/` | 图像检测、目标匹配、分区与标记渲染 |
+| `automation/` | Python 操作 API、快照与目标点击、录制和重放 |
+| `platforms/` | ROCK 5B+ 硬件适配、离线图片后端、后端注册 |
+| `interfaces/` | MCP 工具与网页的认证、路由、视频传输和前端 |
+| `cli/`、`factory.py` | 命令行、配置读取与实例组装 |
 
-核心库不依赖 MCP、网页或硬件包。MCP/网页与硬件适配器共同依赖核心接口，应用不会直接导入 ROCK 实现。硬件通过 entry point 加载；MCP 包中的 ROCK 依赖是可选 extra。
+自动化层通过 `core` 的接口使用后端，图像算法独立于设备和应用。只使用 Python API 时不会导入 MCP、网页或 ROCK 实现；安装依赖统一在根目录管理。依赖方向和扩展入口见 [架构说明](docs/ARCHITECTURE.md)。
 
 ## Python 自动化与操作录制
 
 ```python
-from kvm_automation import Computer, Recording
+from kvm import connect
+from kvm.automation import Recording
 
-with Computer.connect(backend="rock5b-plus") as computer:
+with connect(backend="rock5b-plus") as computer:
     computer.click(320, 240)
     computer.hotkey("ctrl", "a")
     computer.write("hello")
@@ -24,15 +28,15 @@ with Computer.connect(backend="rock5b-plus") as computer:
 
 网页接管后点击“开始录制”，正常操作，再点“停止并生成脚本”。下载包包含可编辑的 `replay.py`、目标图像和结构化记录；脚本自动定位并等待目标，无需手动裁图或为每步编写等待循环。录制捕获经过网页控制台的输入；直接插在目标电脑上的物理键鼠需要额外的输入监听后端。
 
-独立安装、录制工作流和当前能力边界见 [自动化与录制说明](docs/AUTOMATION.md)。
+安装、录制工作流和当前能力边界见 [自动化与录制说明](docs/AUTOMATION.md)。
 
 ## 开发与验证
 
 ```sh
-uv sync --all-packages --frozen
+uv sync --frozen
 uv run python -m unittest discover -s tests -t . -q
-node --test tests/app/test_*.cjs
-uv build --all-packages
+node --test tests/interfaces/test_*.cjs
+uv build
 ```
 
 测试在普通 Linux 开发机运行，不需要板卡；覆盖真实 stdio MCP、HTTP/WebSocket、控制权互斥、视频进程清理、HID 报告和包内 EDID。硬件性能、目标机键鼠行为和浏览器操作体验需要另做实机验收。
@@ -51,12 +55,12 @@ uv run kvm-mcp --backend rock5b-plus
 uv run kvm-web --backend rock5b-plus
 ```
 
-也可以使用 `python -m kvm_mcp mcp --backend rock5b-plus` 和 `python -m kvm_mcp web --backend rock5b-plus`。必须通过 `--backend` 或 `KVM_BACKEND` 明确选择平台。
+也可以使用 `python -m kvm mcp --backend rock5b-plus` 和 `python -m kvm web --backend rock5b-plus`。必须通过 `--backend` 或 `KVM_BACKEND` 明确选择平台。
 
 | 应用配置 | 默认值 | 含义 |
 | --- | --- | --- |
-| `KVM_BACKEND` | 无 | `rock5b-plus` 或 `module:factory` |
-| `KVM_RUNTIME` / `--runtime` | `/run/kvm-mcp` | 同一设备的 MCP 与网页必须共用，包含输入锁和接管标记 |
+| `KVM_BACKEND` | 无 | `rock5b-plus`、`image` 或 `module:factory` |
+| `KVM_RUNTIME` / `--runtime` | `/run/kvm-mcp` | 同一设备的 SDK、MCP 与网页必须共用，包含输入锁和接管标记 |
 | `KVM_TOKEN` | 无 | 网页密码，至少 20 个字符 |
 | `KVM_BIND` | `0.0.0.0` | 网页监听地址 |
 | `KVM_PORT` | `8080` | 网页端口 |

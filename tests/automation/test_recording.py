@@ -6,9 +6,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from kvm_automation import Computer,Recorder,Recording,AutomationInterrupted,TargetNotFound,AmbiguousTarget
-from kvm_automation.ownership import InputGate
-from kvm_automation.targets import locate
+from kvm.automation import Computer, Recorder, Recording, AutomationInterrupted
+from kvm.vision import TargetNotFound, AmbiguousTarget
+from kvm.core.ownership import InputGate
+from kvm.vision.matching import locate
 from .helpers import ScreenBackend,screen
 
 
@@ -35,7 +36,8 @@ class RecordingTests(unittest.TestCase):
         script=(self.root/'demo/replay.py').read_text()
         ast.parse(script)
         self.assertIn('computer.click(target=flow.target(',script)
-        self.assertNotIn('kvm_mcp',script)
+        self.assertNotIn('kvm.interfaces',script)
+        self.assertNotIn('kvm.platforms',script)
         self.assertTrue(flow.target(flow.steps[0]['args']['target']).image.exists())
 
     def test_replay_locates_moved_target_without_using_recorded_coordinates(self):
@@ -54,7 +56,7 @@ class RecordingTests(unittest.TestCase):
         self.record_click()
         replay=ScreenBackend(screen((240,170)))
         computer=Computer(replay,self.root/'runtime',timeout=.5,poll_interval=.001)
-        with patch.object(Computer,'connect',return_value=computer):
+        with patch('kvm.connect',return_value=computer):
             runpy.run_path(str(self.root/'demo/replay.py'),run_name='__main__')
         self.assertEqual(replay.events[0][0],'click')
         self.assertAlmostEqual(replay.events[0][1],290/479,delta=.005)

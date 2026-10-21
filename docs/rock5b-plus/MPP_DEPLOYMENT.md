@@ -65,7 +65,7 @@ backup_dir="/var/backups/kvm-mpp-$(date +%Y%m%d-%H%M%S)"
 install -d -m 700 "$backup_dir"
 cp -a /boot "$backup_dir/"
 cp -a /etc/armbian-release "$backup_dir/"
-for item in /etc/kvm-mcp.env /etc/netplan /opt/kvm-mcp/packages/rock5b-plus/src/kvm_rock5b_plus/video.py; do
+for item in /etc/kvm-mcp.env /etc/netplan /opt/kvm-mcp/src/kvm/platforms/rock5b_plus/video.py; do
     if [ -e "$item" ]; then cp -a "$item" "$backup_dir/"; fi
 done
 uname -r >"$backup_dir/original-kernel.txt"

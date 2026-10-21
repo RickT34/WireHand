@@ -72,7 +72,7 @@ SDP 协商沿用网页登录会话并检查 Origin，最多四个视频连接。
 ```sh
 uv sync --frozen
 uv run python -m unittest discover -s tests -t . -q
-node --test tests/app/test_frontend.cjs
+node --test tests/interfaces/test_frontend.cjs
 uv run python scripts/smoke_rtc.py --seconds 10
 uv run python scripts/smoke_web.py --origin http://192.168.50.152:8080 --frames 20 --live
 uv run python scripts/smoke_mcp.py

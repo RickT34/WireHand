@@ -1,39 +1,35 @@
 [project]
 name = "kvm-mcp"
-version = "0.2.0"
-description = "Platform-independent MCP and web applications for hardware KVMs"
+version = "0.3.0"
+description = "Computer automation, visual recording, MCP and web interfaces for KVMs"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "aiortc>=1.14,<2",
     "anyio>=4,<5",
+    "av>=14,<18",
     "mcp>=1.12,<2",
-    "kvm-automation",
+    "numpy>=2,<3",
+    "opencv-python-headless>=4.10,<5",
+    "pillow>=11,<13",
     "starlette>=0.40,<2",
     "uvicorn[standard]>=0.30,<1",
-    "av>=14,<18",
 ]
-
-[project.optional-dependencies]
-rock5b-plus = ["kvm-rock5b-plus"]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-kvm-mcp = "kvm_mcp.bootstrap:mcp_main"
-kvm-web = "kvm_mcp.bootstrap:web_main"
+kvm-mcp = "kvm.cli.main:mcp_main"
+kvm-web = "kvm.cli.main:web_main"
+kvm-inspect = "kvm.cli.inspect:main"
+rock5b-plus-gadget = "kvm.platforms.rock5b_plus.gadget:main"
+rock5b-plus-hdmi = "kvm.platforms.rock5b_plus.hdmi:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"kvm_mcp.app" = ["static/*"]
-
-[tool.uv.workspace]
-members = ["packages/automation", "packages/rock5b-plus"]
-
-[tool.uv.sources]
-kvm-automation = { workspace = true }
-kvm-rock5b-plus = { workspace = true }
+"kvm.interfaces.web" = ["static/*"]
+"kvm.platforms.rock5b_plus" = ["edid/*.bin"]

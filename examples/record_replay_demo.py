@@ -1,6 +1,6 @@
 """Offline demonstration: record a button, then replay after moving that button.
 
-No OS input is sent. This only needs the standalone kvm-automation package.
+No OS input is sent. Uses kvm.automation without starting MCP or a web server.
 """
 import argparse
 from contextlib import contextmanager
@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 
 from PIL import Image,ImageDraw,ImageFont
-from kvm_automation import Computer,Recording
+from kvm.automation import Computer,Recording
 
 
 class DemoBackend:

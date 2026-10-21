@@ -74,7 +74,7 @@ ssh -N -L 127.0.0.1:18080:127.0.0.1:8080 r5p
 无板卡时启动软件编码测试源：
 
 ```sh
-uv sync --all-packages --frozen
+uv sync --frozen
 uv run python examples/video_transport_demo.py --image /path/to/screenshot.jpg
 ```
 
@@ -95,7 +95,7 @@ Python 探针验证 Annex-B/fMP4 解码和认证；浏览器播放兼容性需�
 
 ```sh
 uv run python -m unittest discover -s tests -t . -q
-node --test tests/app/test_*.cjs
+node --test tests/interfaces/test_*.cjs
 ```
 
 ## 本次验证范围（2026-10-21）

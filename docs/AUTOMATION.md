@@ -1,32 +1,30 @@
-# 独立 Python 自动化库与操作录制
+# Python 自动化与操作录制
 
-## 包与依赖
+## 安装与模块
 
-`kvm-automation` 是核心库，包含 Python API、视觉定位、录制、目标匹配和重放。它可以单独安装，不依赖 MCP、Starlette、aiortc 或 ROCK 硬件包。`kvm-rock5b-plus` 是可选设备插件；`kvm-mcp` 是调用核心库的 MCP/网页应用。
+整个项目使用一个安装包。Python API 位于 `kvm.automation`，图像检测与匹配位于 `kvm.vision`；网页与 MCP 使用同一套实现。模块之间按职责解耦，根目录统一管理安装和依赖。
 
 ```sh
-# 只安装核心库
-pip install ./packages/automation
+pip install .
 
-# 在 ROCK 5B+ 上使用设备接口，不安装 MCP/网页
-pip install ./packages/automation ./packages/rock5b-plus
-
-# 开发整个 workspace
-uv sync --all-packages --frozen
-uv build --all-packages
+# 开发环境
+uv sync --frozen
+uv build
 ```
 
-三个 wheel 分别生成在 `dist/`。核心库导出 `Computer`、`Recorder`、`Recording`、`VisualTarget` 和匹配/中断异常。原来的视觉代码位于 `packages/automation/src/kvm_automation/vision/`，MCP 不再拥有这部分实现。
+`kvm.automation` 导出 `Computer`、`Recorder`、`Recording` 与中断异常；`kvm.vision` 导出 `VisualTarget` 和匹配异常。`kvm.connect()` 从参数或环境读取后端配置，延迟加载指定平台。直接构造 `Computer(backend, runtime)` 则完全由调用方注入后端。
 
-当前控制端使用 POSIX 文件锁。ROCK 插件直接访问板上的设备，因此脚本在板上运行；也可以通过 SSH 启动脚本。其他设备或远程传输可实现 `Backend` 接口。本轮没有添加 Windows/macOS 原生鼠标键盘监听器或远程 RPC 服务。
+当前控制端使用 POSIX 文件锁。ROCK 后端直接访问板上的设备，因此脚本在板上运行，也可以通过 SSH 启动。其他设备或远程传输可实现 `Backend` 接口。当前没有 Windows/macOS 原生鼠标键盘监听器。
 
 ## Python API
 
 ```python
 from pathlib import Path
-from kvm_automation import Computer, Recording, VisualTarget
+from kvm import connect
+from kvm.automation import Recording
+from kvm.vision import VisualTarget
 
-with Computer.connect(backend="rock5b-plus") as computer:
+with connect(backend="rock5b-plus") as computer:
     image = computer.screenshot()       # Pillow RGB 图像，最大采集宽度 3840
     image.save("screen.png")
     computer.click(320, 240)             # 截图像素坐标
@@ -55,7 +53,7 @@ with Computer.connect(backend="rock5b-plus") as computer:
 | `replay(recording)` | 执行结构化录制 |
 | `cancel()` | 请求中断；拖动/按住的键在退出时尝试释放 |
 
-视觉目标可以跟随位置移动；匹配也尝试参考屏幕比例及小范围缩放。默认等待超时 10 秒、轮询间隔 0.15 秒，可以在 `Computer(..., timeout=..., poll_interval=...)` 配置。坐标均相对于后端返回的截图，不使用浏览器显示缩放后的坐标。
+视觉目标可以跟随位置移动；匹配也尝试参考屏幕比例及小范围缩放。默认等待超时 10 秒、轮询间隔 0.15 秒，可以在 `connect(..., timeout=..., poll_interval=...)` 或 `Computer(...)` 配置。坐标均相对于后端返回的截图，不使用浏览器显示缩放后的坐标。
 
 ## 网页录制工作流
 
@@ -72,9 +70,10 @@ KVM_BACKEND=rock5b-plus /opt/kvm-mcp/.venv/bin/python my-recording/replay.py
 也可以直接读取录制数据：
 
 ```python
-from kvm_automation import Computer, Recording
+from kvm import connect
+from kvm.automation import Recording
 
-with Computer.connect("rock5b-plus") as computer:
+with connect("rock5b-plus") as computer:
     Recording.load("my-recording").replay(computer)
 ```
 
@@ -99,10 +98,11 @@ recording-id/
 
 ```python
 from pathlib import Path
-from kvm_automation import Computer, Recording
+from kvm import connect
+from kvm.automation import Recording
 
 flow = Recording.load(Path(__file__).parent)
-with Computer.connect() as computer:
+with connect() as computer:
     computer.click(target=flow.target('target_0001'), button='left')
     computer.write(target=flow.target('target_0002'), text='hello')
 ```
@@ -128,23 +128,23 @@ SDK、MCP 和网页使用相同 `KVM_RUNTIME`。人工接管或其他进程输�
 ```sh
 uv run python examples/record_replay_demo.py --output artifacts/automation/my-demo
 uv run python -m unittest discover -s tests -t . -q
-node --test tests/app/test_frontend.cjs
+node --test tests/interfaces/test_frontend.cjs
 ```
 
 演示程序使用内存中的画面和输入记录后端：录制时点击 `(100,90)`，重放时按钮移动后实际定位到 `(290,190)`，随后重放文本输入；不向真实电脑发送输入。导出实际的 `recording.json`、模板、`replay.py`、前后画面与 `result.json`。
 
 测试覆盖网页录制/认证下载、生成脚本执行、目标移动、延迟出现、重复目标拒绝、悬停菜单、键盘批次、双击、拖动、修饰键、断线中断、人工介入、取消释放和路径校验。实机输入手感、截图缓存与快速菜单/动画的时序需要部署后单独验收。
 
-## 本轮验证产物（2026-10-21）
+## 验证记录与演示
 
-本地浏览器实际完成了登录、接管、开始录制、画面点击、h/i 键输入、停止、下载和交还控制。导出的两步脚本已在新建虚拟环境运行：该环境仅安装 `kvm-automation` 及其三个依赖，没有 MCP/网页框架/ROCK 插件。将演示按钮移位后，记录的点击点约 `(100.29,89.72)` 被重定位到 `(290.29,189.72)`，随后重放 h/i 按键。
+2026-10-21 的首次录制验证在本地浏览器完成了登录、接管、录制点击与 h/i 按键、停止、下载和交还。按钮移位后，记录的点击点约 `(100.29,89.72)` 被重定位到 `(290.29,189.72)`。当时采用拆包结构，其旧脚本需更新为本页的新导入方式。
 
-证据保存在 `artifacts/automation/`：`browser-recording.zip`、`standalone-verification.json`、`recorder-ui.jpg`，以及 `demo-recording/` 的脚本和前后图像。这些目录被 Git 忽略，均是模拟设备验证，不是实机 USB 验收。
+此前证据位于 `artifacts/automation/` 中的 `browser-recording.zip`、`standalone-verification.json`、`recorder-ui.jpg` 和 `demo-recording/`。这些产物是模拟设备验证，不是实机 USB 验收。
 
-重现网页演示（需要安装 workspace 的应用包）：
+重现当前网页演示：
 
 ```sh
 uv run python examples/web_recording_demo.py
 ```
 
-访问 `http://127.0.0.1:8767/`，演示密码为 `recording-demo-local-token-2026`。它仅绑定回环地址，使用生成的模拟屏幕，不连接任何真实输入设备。核心库演示仍可用前面的 `record_replay_demo.py` 在没有网页依赖的环境运行。
+访问 `http://127.0.0.1:8767/`，演示密码为 `recording-demo-local-token-2026`。它仅绑定回环地址，使用生成的模拟屏幕。命令行录制演示直接调用 SDK，不启动网页或 MCP。

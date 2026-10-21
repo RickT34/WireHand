@@ -1,6 +1,6 @@
 # ROCK 5B+ 平台
 
-本目录保存 ROCK 5B+ 的接线、部署和实机记录。适配代码在 `packages/rock5b-plus/src/kvm_rock5b_plus/`，服务模板在 `deploy/rock5b-plus/`。以下命令针对重构后的包结构。
+本目录保存 ROCK 5B+ 的接线、部署和实机记录。适配代码在 `src/kvm/platforms/rock5b_plus/`，服务模板在 `deploy/rock5b-plus/`。以下命令针对重构后的包结构。
 
 ## 接线与系统环境
 
@@ -18,14 +18,14 @@
 把当前仓库内容放在板子的 `/opt/kvm-mcp`，在该目录执行：
 
 ```sh
-uv sync --all-packages --frozen
+uv sync --frozen
 ```
 
 没有 uv 时可以用标准 Python 包安装：
 
 ```sh
 python3 -m venv /opt/kvm-mcp/.venv
-/opt/kvm-mcp/.venv/bin/pip install /opt/kvm-mcp/packages/automation /opt/kvm-mcp/packages/rock5b-plus /opt/kvm-mcp
+/opt/kvm-mcp/.venv/bin/pip install /opt/kvm-mcp
 ```
 
 `requirements.txt` 仅是依赖导出，不能替代项目包安装。新命令、静态文件和 EDID 都通过项目包提供。

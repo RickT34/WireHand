@@ -8,10 +8,10 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from kvm_rock5b_plus.video import VideoHub, read_frame, h264_pipeline, output_size
-from kvm_automation.runtime import exclusive_lock
-from kvm_rock5b_plus.hdmi import PROFILE, validate_edid
-from kvm_rock5b_plus.snapshot import screenshot
+from kvm.platforms.rock5b_plus.video import VideoHub, read_frame, h264_pipeline, output_size
+from kvm.core.locking import exclusive_lock
+from kvm.platforms.rock5b_plus.hdmi import PROFILE, validate_edid
+from kvm.platforms.rock5b_plus.snapshot import screenshot
 
 
 class FrameTests(unittest.IsolatedAsyncioTestCase):
@@ -40,7 +40,7 @@ class FrameTests(unittest.IsolatedAsyncioTestCase):
     def test_mcp_uses_shared_frame_without_reopening_hdmi(self):
         with tempfile.TemporaryDirectory() as directory:
             Image.new('RGB', (1920,1080), (80,160,20)).save(Path(directory)/'frame.jpg')
-            with patch('kvm_rock5b_plus.snapshot.run') as capture:
+            with patch('kvm.platforms.rock5b_plus.snapshot.run') as capture:
                 result = screenshot(Path(directory), 640)
             capture.assert_not_called()
             with Image.open(io.BytesIO(result)) as image:
@@ -114,7 +114,7 @@ class CaptureLifecycleTests(unittest.IsolatedAsyncioTestCase):
                    "sys.stdout.flush(); signal.pause()")
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ, KVM_VIDEO_MODE='software', KVM_VIDEO_SOURCE='test'
-        ), patch('kvm_rock5b_plus.video.pipeline', return_value=[sys.executable, '-c', program]):
+        ), patch('kvm.platforms.rock5b_plus.video.pipeline', return_value=[sys.executable, '-c', program]):
             runtime = Path(directory)
             hub = VideoHub(runtime)
             task = asyncio.create_task(hub.run())

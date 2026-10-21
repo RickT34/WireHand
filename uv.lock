@@ -10,13 +10,6 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'win32'",
 ]
 
-[manifest]
-members = [
-    "kvm-automation",
-    "kvm-mcp",
-    "kvm-rock5b-plus",
-]
-
 [[package]]
 name = "aioice"
 version = "0.10.2"
@@ -526,40 +519,20 @@ wheels = [
 ]
 
 [[package]]
-name = "kvm-automation"
-version = "0.1.0"
-source = { editable = "packages/automation" }
-dependencies = [
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "opencv-python-headless" },
-    { name = "pillow" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "numpy", specifier = ">=2,<3" },
-    { name = "opencv-python-headless", specifier = ">=4.10,<5" },
-    { name = "pillow", specifier = ">=11,<13" },
-]
-
-[[package]]
 name = "kvm-mcp"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiortc" },
     { name = "anyio" },
     { name = "av" },
-    { name = "kvm-automation" },
     { name = "mcp" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "opencv-python-headless" },
+    { name = "pillow" },
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-rock5b-plus = [
-    { name = "kvm-rock5b-plus" },
 ]
 
 [package.metadata]
@@ -567,27 +540,12 @@ requires-dist = [
     { name = "aiortc", specifier = ">=1.14,<2" },
     { name = "anyio", specifier = ">=4,<5" },
     { name = "av", specifier = ">=14,<18" },
-    { name = "kvm-automation", editable = "packages/automation" },
-    { name = "kvm-rock5b-plus", marker = "extra == 'rock5b-plus'", editable = "packages/rock5b-plus" },
     { name = "mcp", specifier = ">=1.12,<2" },
+    { name = "numpy", specifier = ">=2,<3" },
+    { name = "opencv-python-headless", specifier = ">=4.10,<5" },
+    { name = "pillow", specifier = ">=11,<13" },
     { name = "starlette", specifier = ">=0.40,<2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
-]
-provides-extras = ["rock5b-plus"]
-
-[[package]]
-name = "kvm-rock5b-plus"
-version = "0.1.0"
-source = { editable = "packages/rock5b-plus" }
-dependencies = [
-    { name = "av" },
-    { name = "kvm-automation" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "av", specifier = ">=14,<18" },
-    { name = "kvm-automation", editable = "packages/automation" },
 ]
 
 [[package]]

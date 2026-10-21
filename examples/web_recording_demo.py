@@ -5,8 +5,8 @@ from pathlib import Path
 
 import uvicorn
 from record_replay_demo import DemoBackend
-from kvm_automation.ownership import InputGate
-from kvm_mcp.app.web import make_app
+from kvm.core.ownership import InputGate
+from kvm.interfaces.web.app import make_app
 
 
 def main():

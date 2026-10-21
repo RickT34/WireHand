@@ -1,6 +1,6 @@
 # 视觉定位
 
-独立库 `kvm-automation` 的 `vision` 模块将截图转换为候选目标与标记图，agent 根据 ID 点击。平台仍只提供截图和语义输入，不需要知道候选检测、图像分页或标记布局。
+`kvm.vision` 负责图像候选检测与标记渲染，`kvm.automation.inspection.Inspector` 负责截图会话、分页和按 ID 点击，MCP 负责对 agent 暴露工具。平台仍只提供截图和语义输入，不需要知道候选检测、图像分页或标记布局。
 
 ## MCP 调用
 
@@ -73,7 +73,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/vision
 
 ```sh
 KVM_SCREENSHOT=/path/to/screenshot.jpg uv run kvm-mcp \
-  --backend kvm_automation.vision.cli:saved_screen_backend \
+  --backend image \
   --runtime /tmp/kvm-vision-replay
 ```
 
