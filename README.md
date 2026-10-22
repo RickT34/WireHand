@@ -33,7 +33,7 @@ inspect_screen()                                  → 获取快照 S 和区域�
 inspect_region(snapshot_id=S, region_id="C09")     → 查看右下角的局部编号
 click_target(snapshot_id=S, target_id="T234")      → 按编号选择关闭按钮
 ```
-[视觉定位详细说明](VISUAL_TARGETING.md)
+[视觉定位详细说明](docs/VISUAL_TARGETING.md)
 
 ## 适合哪些场景
 
