@@ -2,6 +2,14 @@
 
 [返回文档导航](../README.md)
 
+ROCK 5B+ 是 Radxa 推出的 **单板计算机（SBC）**，搭载 Rockchip RK3588 八核处理器（4× Cortex-A76 + 4× Cortex-A55），可运行 Debian、Armbian 等 Linux 系统。它集成 HDMI 输入、USB OTG 和网络接口，适合同时承担画面采集、键鼠模拟及自动化程序运行。在 WireHand 中，板子就是连接被控设备与远程操作端的 KVM 控制器。
+
+[Radxa 官方产品页](https://www.radxa.com/products/rock5/5bp/) · [官方介绍与接口说明](https://docs.radxa.com/en/rock5/rock5b/getting-started/introduction)
+
+![Radxa ROCK 5B+ 官方板卡与接口图](https://docs.radxa.com/img/rock5b/rock5b-plus-overview.webp)
+
+*图片来源：Radxa Computer (Shenzhen) Co., Ltd.，[Radxa 官方文档](https://docs.radxa.com/en/rock5/rock5b/getting-started/introduction)，按站点标注的 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 署名引用；使用官方原图链接，未修改图片。*
+
 **被控设备无需安装任何控制软件。** ROCK 5B+ 通过 HDMI IN 采集画面，通过 USB gadget 模拟标准 HID 键盘鼠标。具有兼容视频输出、能够接收 USB 键鼠输入的电子设备即可按此方式接入，控制对象不限于电脑。
 
 网页服务、图像识别和录制脚本运行在板子上。被控设备只需输出画面并接收键鼠输入，控制过程不依赖其操作系统提供远程控制 API。

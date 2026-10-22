@@ -161,6 +161,8 @@ uv run wirehand-docs --output artifacts/sdk-docs
 
 ## 控制电子设备：ROCK 5B+
 
+ROCK 5B+ 是 Radxa 推出的 **单板计算机（SBC）**。它集成 HDMI 输入、USB OTG 和网络接口，适合同时承担画面采集、键鼠模拟及自动化程序运行。在 WireHand 中，板子就是连接被控设备与远程操作端的 KVM 控制器。
+
 将被控设备的 **HDMI OUT 接到 ROCK 5B+ 的 HDMI IN**，再用板子的 USB-C 数据口连接被控设备的 USB 主机口。板子独立供电，被控设备通过 HDMI 输出画面、通过 USB 接收标准 HID 键鼠事件，无需安装控制软件。
 
 完成板端驱动、USB gadget 和 EDID 配置后，在板子的仓库目录运行：
