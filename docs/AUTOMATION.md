@@ -55,6 +55,8 @@ with connect(backend="rock5b-plus") as computer:
 
 视觉目标可以跟随位置移动；匹配也尝试参考屏幕比例及小范围缩放。默认等待超时 10 秒、轮询间隔 0.15 秒，可以在 `connect(..., timeout=..., poll_interval=...)` 或 `Computer(...)` 配置。`click(x,y)`、`move_to(x,y)` 等使用后端截图的像素坐标；`scroll(position=(x,y))` 和无 target 的 `move_path` 使用 0–1 屏幕相对坐标。浏览器显示缩放不改变这些坐标约定。
 
+真实 HDMI 截图提取的局部模板、可复现的匹配代码，以及快照编号与持久 target 的区别，见 [视觉定位示例](VISUAL_TARGETING.md#录制脚本如何使用视觉-target)。
+
 ## 网页录制工作流
 
 脚本会自动保存到服务器的脚本库。结束接管后，可以在网页直接运行并设置重复次数或无限重复，

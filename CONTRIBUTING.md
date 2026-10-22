@@ -37,6 +37,15 @@ uv run python examples/web_recording_demo.py
 
 访问 <http://127.0.0.1:8767/>，密码为演示专用的 `recording-demo-local-token-2026`。它使用合成画面与模拟输入；真实应用交互请使用 [Docker 桌面](docs/DOCKER_DESKTOP.md)。
 
+真实设备截图的离线标记与模板示例：
+
+```bash
+uv run python examples/visual_targeting_demo.py docs/images/visual-real-screen.jpg \
+  --region C09 --target T234 --output artifacts/vision/real-example
+```
+
+输出目录需为空；程序使用保存的真实帧和内存输入后端，不发送设备输入。详见 [视觉定位](docs/VISUAL_TARGETING.md)。
+
 其他入口：
 
 ```bash

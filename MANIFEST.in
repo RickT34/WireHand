@@ -1,5 +1,5 @@
 include requirements.txt uv.lock LICENSE CONTRIBUTING.md
-recursive-include docs *.md *.png *.svg
+recursive-include docs *.md *.png *.jpg *.svg
 recursive-include deploy *.service *.json *.example *.conf
 recursive-include deploy/docker-desktop Dockerfile Dockerfile.dockerignore desktopctl *.yaml *.sh *.py
 recursive-include scripts *.py

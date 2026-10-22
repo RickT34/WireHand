@@ -11,7 +11,7 @@
 | 调整密码、端口、后端和运行目录 | [配置参考](CONFIGURATION.md) |
 | 无需安装被控端软件，通过 HDMI 与 USB 控制电子设备 | [ROCK 5B+ 部署](rock5b-plus/README.md) |
 | 配置 SSH 转发、HTTPS 或排查视频 | [远程访问与视频](REMOTE_VIEWING.md) |
-| 调试候选检测、标记分页与点击校验 | [视觉定位](VISUAL_TARGETING.md) |
+| 理解视觉定位并复现真实截图上的编号点击 | [视觉定位与真实设备示例](VISUAL_TARGETING.md) |
 | 修改代码、运行测试或构建安装包 | [贡献与本地开发](../CONTRIBUTING.md) |
 | 新增设备后端或调整模块边界 | [架构与扩展](ARCHITECTURE.md) |
 
