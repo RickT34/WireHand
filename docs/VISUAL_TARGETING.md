@@ -1,6 +1,8 @@
 # 视觉定位
 
-`kvm.vision` 负责图像候选检测与标记渲染，`kvm.automation.inspection.Inspector` 负责截图会话、分页和按 ID 点击，MCP 负责对 agent 暴露工具。平台仍只提供截图和语义输入，不需要知道候选检测、图像分页或标记布局。
+[返回文档导航](README.md)
+
+`wirehand.vision` 负责图像候选检测与标记渲染，`wirehand.automation.inspection.Inspector` 负责截图会话、分页和按 ID 点击，MCP 负责对 agent 暴露工具。平台仍只提供截图和语义输入，不需要知道候选检测、图像分页或标记布局。
 
 ## MCP 调用
 
@@ -33,7 +35,7 @@ click_target(snapshot_id="…", target_id="T055", button="left")
 
 ## 检测与展示
 
-第一版使用本地 OpenCV，不下载模型，不调用云服务，也不使用被控系统的 DOM 或无障碍树。
+当前检测器使用本地 OpenCV，不下载模型，不调用云服务，也不使用被控系统的 DOM 或无障碍树。
 
 - 边缘与形态学操作生成文字/图标候选，局部对比度补充渐变背景上的漏检。
 - 重叠、包含关系去除重复轮廓；紧邻、基线一致的文字碎片尝试合并。
@@ -63,7 +65,7 @@ click_target(snapshot_id="…", target_id="T055", button="left")
 导出 PNG、元数据和静态 HTML 检查页：
 
 ```sh
-uv run kvm-inspect /path/to/screenshot.jpg --output artifacts/vision/example
+uv run wirehand-inspect /path/to/screenshot.jpg --output artifacts/vision/example
 python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/vision
 ```
 
@@ -72,7 +74,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/vision
 也可以把保存的真实截图提供给 MCP 客户端，直接调试多图返回和区域细分：
 
 ```sh
-KVM_SCREENSHOT=/path/to/screenshot.jpg uv run kvm-mcp \
+KVM_SCREENSHOT=/path/to/screenshot.jpg uv run wirehand-mcp \
   --backend image \
   --runtime /tmp/kvm-vision-replay
 ```
@@ -82,32 +84,8 @@ KVM_SCREENSHOT=/path/to/screenshot.jpg uv run kvm-mcp \
 从板子读取新鲜的真实 HDMI 帧，用于新的观察轮次：
 
 ```sh
-uv run python scripts/capture_frame.py r5p --output artifacts/vision/live.jpg
-uv run kvm-inspect artifacts/vision/live.jpg --output artifacts/vision/live
+uv run python scripts/capture_frame.py root@rock-kvm --output artifacts/vision/live.jpg
+uv run wirehand-inspect artifacts/vision/live.jpg --output artifacts/vision/live
 ```
 
 读取脚本只复制最近两秒内的共享帧，不启动采集、不发送 HID、不改变人工接管状态。
-
-## 2026-10-20 本地检查记录
-
-本轮开始连接板子时，`kvm-web` active、USB configured，但 HDMI 查询返回 `No locks available`，共享帧不存在。因此先用已保存的真实 HDMI 图调试。后续复查时 HDMI 恢复，已通过 SSH 读取当场真实画面：1920×1080 的 Zen 浏览器 Autodesk 页面，读取时共享帧年龄约 26ms。人工接管标记仍在，未执行板端点击。
-
-| 已保存的真实画面 | 当前候选数 | 区域数 | 默认返回页数 |
-| --- | ---: | ---: | ---: |
-| Zed 编辑器 | 58 | 7 | 3 |
-| macOS 键盘设置 | 118 | 13 | 5 |
-| macOS 显示设置 | 140 | 13 | 5 |
-
-当场采集的网页有大幅建筑插画，检测出 266 个候选、23 个细分区域（全部输出需要 8 页）。逐张观察后加入高密度总览：现在首个 MCP 返回只有一张九区域总览；选择右下角 C09 后，返回总览与两张局部图，共 24 个候选，每张分别 14/10 个。弹窗关闭按钮在局部图中为 T234，原图点击中心 `(1808.5, 818.5)`；它与旁边插画的线条候选可以清楚区分。
-
-逐张查看标记图后进行了三项调整：
-
-- 编辑器菜单的 Go/Run 在单纯边缘检测时漏检，局部对比度补充后出现对应标记。
-- 孤立鼠标光标导致工具栏分图过高，按大间隙拆分后成为单独区域。
-- 设置页的重复图标框和文字碎片较多；合并后键盘设置页从 144 个候选降至 118 个，显示设置页从 152 个降至 140 个。候选减少不等于点击成功率提升。
-
-通过浏览器打开实际导出的检查页，点击 T055 后页面显示原图点击点 `(1570, 398.5)`，对应键盘设置中的“编辑…”区域。浏览器截图接口在本轮返回 `Unable to capture screenshot`，因此报告的可视证据采用导出的标记 PNG；网页事件通过浏览器实际交互验证。
-
-自动测试还通过真实 stdio MCP 验证了多张 ImageContent、分页、网格和按 ID 点击调用；这些调用的输入目标是测试记录后端。真实 HDMI → 新工具 → USB → 目标界面反馈的闭环仍需在交还人工控制后验收。
-
-本地证据位于被 Git 忽略的 `artifacts/vision/zed-v2/`、`settings-v2/`、`display-v2/`。当场原图与采集元数据是 `live-now.jpg` / `live-now.capture.json`，最新完整检查页在 `live-refined/`，C09 工具返回图在 `live-focus/`。PNG、原图、`manifest.json` 和检查页均保留，方便继续比较。

@@ -2,9 +2,9 @@ import unittest
 
 from PIL import Image, ImageDraw
 
-from kvm.vision.detection import ContourDetector
-from kvm.vision.models import Candidate, Target
-from kvm.vision.rendering import partition
+from wirehand.vision.detection import ContourDetector
+from wirehand.vision.models import Candidate, Target
+from wirehand.vision.rendering import partition
 
 
 class DetectorLayoutTests(unittest.TestCase):

@@ -5,8 +5,8 @@ import unittest
 
 from PIL import Image
 
-from kvm.cli.inspect import export_gallery
-from kvm.platforms.image import ImageBackend
+from wirehand.cli.inspect import export_gallery
+from wirehand.platforms.image import ImageBackend
 
 
 class GalleryTests(unittest.TestCase):

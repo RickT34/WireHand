@@ -1,12 +1,13 @@
 """Serve the recording UI against a simulated screen; no physical input is sent."""
 import argparse
 import asyncio
+import os
 from pathlib import Path
 
 import uvicorn
 from record_replay_demo import DemoBackend
-from kvm.core.ownership import InputGate
-from kvm.interfaces.web.app import make_app
+from wirehand.core.ownership import InputGate
+from wirehand.interfaces.web.app import make_app
 
 
 def main():
@@ -14,6 +15,8 @@ def main():
     parser.add_argument('--port',type=int,default=8767)
     parser.add_argument('--output',type=Path,default=Path('artifacts/automation/web-demo'))
     args=parser.parse_args()
+    # Child script processes must be able to import this example backend too.
+    os.environ['PYTHONPATH'] = str(Path(__file__).resolve().parent) + os.pathsep + os.environ.get('PYTHONPATH', '')
     backend=DemoBackend()
     class Video:
         encoded=None

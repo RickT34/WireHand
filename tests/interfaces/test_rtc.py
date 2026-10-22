@@ -8,8 +8,8 @@ from aiortc.codecs.h264 import H264Encoder
 from aiortc import RTCPeerConnection, RTCConfiguration
 from aiortc.mediastreams import MediaStreamError
 
-from kvm.core.media import EncodedHub
-from kvm.interfaces.web.video.rtc import EncodedTrack, RTCManager
+from wirehand.core.media import EncodedHub
+from wirehand.interfaces.web.video.rtc import EncodedTrack, RTCManager
 
 
 class PacketTests(unittest.IsolatedAsyncioTestCase):

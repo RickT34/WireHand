@@ -16,9 +16,9 @@ import av
 from PIL import Image,ImageDraw
 import uvicorn
 
-from kvm.core.media import EncodedHub
-from kvm.core.ownership import InputGate
-from kvm.interfaces.web.app import make_app
+from wirehand.core.media import EncodedHub
+from wirehand.core.ownership import InputGate
+from wirehand.interfaces.web.app import make_app
 
 
 class DemoVideo:

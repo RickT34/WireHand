@@ -5,9 +5,9 @@ import unittest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from kvm.interfaces.web.control import Controller
-from kvm.core.ownership import InputGate
-from kvm.interfaces.web.app import make_app
+from wirehand.interfaces.web.control import Controller
+from wirehand.core.ownership import InputGate
+from wirehand.interfaces.web.app import make_app
 from tests.fakes import FakeBackend
 
 

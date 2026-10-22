@@ -1,0 +1,14 @@
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!requirements.txt
+!src/
+!src/**
+!deploy/
+!deploy/docker-desktop/
+!deploy/docker-desktop/*.sh
+!deploy/docker-desktop/*.conf
+!deploy/docker-desktop/*.py
+**/__pycache__
+**/*.pyc

@@ -6,9 +6,9 @@ import unittest
 import zipfile
 
 from starlette.testclient import TestClient
-from kvm.automation import Recording,Computer
-from kvm.core.ownership import InputGate
-from kvm.interfaces.web.app import make_app
+from wirehand.automation import Recording,Computer
+from wirehand.core.ownership import InputGate
+from wirehand.interfaces.web.app import make_app
 from tests.automation.helpers import ScreenBackend,screen
 
 

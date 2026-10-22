@@ -37,7 +37,7 @@ function fixture({supported=true,supportProbe=null}={}){
    WebSocket:Socket,VideoDecoder:Decoder,MediaSource,atob,URL:{createObjectURL:()=> 'blob:video',revokeObjectURL(){}},
    EncodedVideoChunk:class {constructor(options){Object.assign(this,options);}},
    performance:{now:()=>100},setInterval:()=>1,clearInterval(){},setTimeout:(fn,ms)=>{timers.push({fn,ms});return 1;},clearTimeout(){}});
- vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/kvm/interfaces/web/static/h264.js'),'utf8'),context);
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/wirehand/interfaces/web/static/h264.js'),'utf8'),context);
  const Player=context.module.exports.H264Player;
  const player=new Player({url:'wss://kvm.example/ws/h264',canvas,video,onFrame:frame=>frames.push(frame)});
  player.start();

@@ -1,7 +1,7 @@
 name: kvm-desktop
 services:
   desktop:
-    image: kvm-mcp/desktop:local
+    image: wirehand/desktop:local
     build:
       context: ../..
       dockerfile: deploy/docker-desktop/Dockerfile
@@ -10,7 +10,7 @@ services:
     ports:
       - "${KVM_DESKTOP_BIND:-127.0.0.1}:${KVM_DESKTOP_PORT:-18810}:8080"
     environment:
-      KVM_TOKEN: ${KVM_TOKEN:?Run ./desktopctl init first}
+      KVM_TOKEN: ${KVM_TOKEN:?Run ./deploy/docker-desktop/desktopctl init first}
       KVM_HOSTS: ${KVM_HOSTS:-localhost,127.0.0.1}
       KVM_TRUSTED_PROXIES: ${KVM_TRUSTED_PROXIES:-}
       KVM_DESKTOP_RESOLUTION: ${KVM_DESKTOP_RESOLUTION:-1280x800}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WireHand · 接手 — 远程控制台</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div class="brand"><div class="brand-mark">W</div><div><strong>WireHand</strong><span>接手 · 远程控制台</span></div></div>
+<div class="connection"><i id="connection-dot"></i><span id="connection-label">正在连接</span></div>
+<a href="/docs/" target="_blank" rel="noopener" class="nav-link">SDK 文档 ↗</a>
+<button id="logout" class="quiet">退出</button></header>
+<main class="console">
+<section class="title-row"><div><p class="eyebrow">REMOTE DEVICE</p><h1>设备画面</h1></div>
+<div class="mode"><span id="mode-label">非接管模式</span><button class="primary" id="take">接管控制</button>
+<button id="give" hidden>结束接管</button></div></section>
+<section class="screen-shell" id="screen-shell">
+<div class="screen-toolbar"><div class="pills"><span class="pill" id="video-status">视频 · 检查中</span>
+<span class="pill" id="input-status">输入 · 检查中</span></div>
+<div class="tools"><select id="transport" aria-label="视频模式"><option value="auto">自动 · 低延迟 H.264</option><option value="mse">兼容 · H.264</option><option value="webrtc">直连 · WebRTC</option><option value="jpeg">备用 · JPEG</option></select><select id="shortcut" aria-label="发送组合键"><option value="">发送组合键…</option>
+<option value="ctrl-alt-delete">Ctrl + Alt + Del</option><option value="alt-tab">Alt + Tab</option>
+<option value="meta">Windows / Command</option><option value="escape">Esc</option></select>
+<button id="release">释放按键</button><button id="fullscreen">全屏 ↗</button></div></div>
+<div class="viewport" id="viewport"><canvas id="screen" tabindex="0" aria-label="被控电脑画面"></canvas>
+<video id="rtc-video" class="remote-display" tabindex="0" autoplay muted playsinline hidden aria-label="被控电脑实时视频"></video>
+<div class="empty-state" id="empty"><div class="monitor-icon">▣</div><h2 id="empty-title">正在连接控制台</h2>
+<p id="empty-message">连接后将自动显示画面</p><span class="cable-hint">请确认被控设备已连接视频与输入接口</span></div></div>
+<div class="screen-footer"><span id="video-info">等待视频信号</span><span id="rate">— fps</span></div>
+</section>
+<section class="help-row"><p><span class="hint-dot"></span><span id="hint">当前为非接管模式。接管后点击画面，即可使用鼠标和键盘。</span></p>
+<span class="tag" id="encoder-label">视频连接</span></section>
+<section class="recording-row" aria-label="操作录制">
+<label class="record-name">脚本名称<input id="record-name" maxlength="80" placeholder="例如：每日整理（可稍后重命名）"></label>
+<button id="record-toggle" disabled>开始录制</button>
+<span id="record-status" role="status" aria-live="polite">接管后可录制屏幕与操作，生成 Python 脚本</span>
+<a id="record-download" hidden>下载脚本与目标图片</a>
+</section>
+<section class="library" aria-labelledby="library-title">
+<div class="library-heading"><div><p class="eyebrow">YOUR AUTOMATIONS</p><h2 id="library-title">脚本库 <span id="script-count" class="subtle">0 个脚本</span></h2>
+<p>录制的操作自动保存在服务器。下载修改后，上传同名压缩包即可替换。</p></div>
+<button id="upload-button">上传脚本 ZIP ↑</button><input id="script-upload" type="file" accept=".zip,application/zip" hidden></div>
+<div class="run-options"><label for="repeat-count">重复次数</label><input id="repeat-count" type="number" min="1" max="100000" value="1">
+<label class="check-label"><input id="repeat-forever" type="checkbox"> 无限重复</label><span id="run-mode-hint" class="subtle"></span></div>
+<div id="script-list" class="script-list"></div><div id="scripts-empty" class="scripts-empty">还没有脚本。接管设备录制一段操作，或上传之前下载的压缩包。</div>
+<p id="library-notice" class="notice" role="status" aria-live="polite"></p>
+<div class="run-panel"><div class="run-heading"><div><strong id="run-status" role="status" aria-live="polite">尚未运行</strong><p id="run-progress"></p></div><button id="stop-script" disabled>停止执行</button></div>
+<details><summary>运行日志</summary><pre id="run-log">脚本输出将显示在这里</pre></details></div>
+</section>
+<p id="notice" class="notice" role="status" aria-live="polite"></p>
+<details><summary>连接与操作说明</summary><p>请按照所用平台的接线说明，连接被控设备的视频输出与键鼠输入接口。</p>
+<p>接管后由当前浏览器控制设备；运行中的脚本会先停止。切换标签或窗口会释放按键；连接断开后自动结束接管；无响应连接最多约 7 秒后释放。</p>
+<p>建议单屏或复制模式。键盘按物理位置映射，中文需使用目标电脑的输入法。浏览器保留的组合键可通过上方菜单发送。</p>
+<pre id="diagnostics"></pre></details>
+</main><script src="/h264.js" defer></script><script src="/app.js" defer></script><script src="/scripts.js" defer></script></body></html>

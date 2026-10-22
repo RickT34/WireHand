@@ -14,10 +14,10 @@ from mcp.client.stdio import stdio_client
 from PIL import Image
 from starlette.testclient import TestClient
 
-from kvm.interfaces.web.control import Controller
-from kvm.interfaces.mcp.server import create_mcp
-from kvm.core.ownership import InputGate
-from kvm.interfaces.web.app import make_app
+from wirehand.interfaces.web.control import Controller
+from wirehand.interfaces.mcp.server import create_mcp
+from wirehand.core.ownership import InputGate
+from wirehand.interfaces.web.app import make_app
 from tests.fakes import FakeBackend
 
 
@@ -44,7 +44,7 @@ class MCPIntegrationTests(unittest.IsolatedAsyncioTestCase):
             controller.claim(owner)
             self.addCleanup(controller.disconnect, owner)
             params = StdioServerParameters(command=sys.executable, args=[
-                '-m', 'kvm', 'mcp', '--backend', 'tests.fakes:FakeBackend',
+                '-m', 'wirehand', 'mcp', '--backend', 'tests.fakes:FakeBackend',
                 '--runtime', directory], cwd=str(Path(__file__).resolve().parents[2]))
             async with stdio_client(params) as (reader, writer):
                 async with ClientSession(reader, writer) as client:
@@ -52,31 +52,12 @@ class MCPIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual({tool.name for tool in (await client.list_tools()).tools},
                                      {'status', 'screenshot', 'press_key', 'type_text', 'mouse', 'release_all',
                                       'inspect_screen', 'inspect_region', 'click_target'})
-                    state = await client.call_tool('status', {})
-                    self.assertFalse(state.isError)
-                    self.assertTrue(json.loads(state.content[0].text)['manual_control'])
-                    frame = await client.call_tool('screenshot', {'max_width': 640})
-                    self.assertFalse(frame.isError)
-                    with Image.open(io.BytesIO(base64.b64decode(frame.content[0].data))) as image:
-                        self.assertEqual(image.size, (640, 360))
-                    invalid = await client.call_tool('screenshot', {'max_width': 1})
-                    self.assertTrue(invalid.isError)
-                    inspection = await client.call_tool('inspect_screen', {})
-                    self.assertFalse(inspection.isError, inspection)
-                    self.assertEqual([item.type for item in inspection.content], ['text', 'image'])
-                    observation = json.loads(inspection.content[0].text)
-                    grid = await client.call_tool('inspect_region', {
-                        'snapshot_id': observation['snapshot_id'], 'region_id': 'FULL', 'mode': 'grid'})
-                    self.assertFalse(grid.isError, grid)
-                    cells = json.loads(grid.content[0].text)
-                    self.assertGreater(len(grid.content), 1)
-                    denied = await client.call_tool('click_target', {
-                        'snapshot_id': observation['snapshot_id'], 'target_id': cells['targets'][0]['id']})
-                    self.assertTrue(denied.isError)
-                    self.assertIn('manual control', denied.content[0].text)
-                    for name, args in [('press_key', {'keys': ['enter']}),
-                                       ('type_text', {'text': 'test'}),
-                                       ('mouse', {'x': .5, 'y': .5}), ('release_all', {})]:
+                    for name, args in [
+                        ('status', {}), ('screenshot', {'max_width': 640}),
+                        ('inspect_screen', {}), ('inspect_region', {'snapshot_id': 'old', 'region_id': 'FULL'}),
+                        ('click_target', {'snapshot_id': 'old', 'target_id': 'T1'}),
+                        ('press_key', {'keys': ['enter']}), ('type_text', {'text': 'test'}),
+                        ('mouse', {'x': .5, 'y': .5}), ('release_all', {})]:
                         result = await client.call_tool(name, args)
                         self.assertTrue(result.isError, name)
                         self.assertIn('manual control', result.content[0].text)

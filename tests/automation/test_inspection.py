@@ -6,9 +6,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from kvm.core.ownership import InputGate
-from kvm.vision.models import Candidate
-from kvm.automation.inspection import StaleSnapshot, Inspector
+from wirehand.core.ownership import InputGate
+from wirehand.vision.models import Candidate
+from wirehand.automation.inspection import StaleSnapshot, Inspector
 from tests.fakes import FakeBackend
 
 

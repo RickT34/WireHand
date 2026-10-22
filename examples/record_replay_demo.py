@@ -1,6 +1,6 @@
 """Offline demonstration: record a button, then replay after moving that button.
 
-No OS input is sent. Uses kvm.automation without starting MCP or a web server.
+No OS input is sent. Uses wirehand.automation without starting MCP or a web server.
 """
 import argparse
 from contextlib import contextmanager
@@ -10,12 +10,12 @@ from pathlib import Path
 import tempfile
 
 from PIL import Image,ImageDraw,ImageFont
-from kvm.automation import Computer,Recording
+from wirehand.automation import Computer,Recording
 
 
 class DemoBackend:
     name='demo'
-    def __init__(self, origin=(50,70)):
+    def __init__(self, origin=(50,70), *, runtime=None):
         self.origin=origin
         self.events=[]
     def screenshot(self,max_width=3840):

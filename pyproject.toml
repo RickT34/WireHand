@@ -1,8 +1,10 @@
 [project]
-name = "kvm-mcp"
+name = "wirehand"
 version = "0.3.0"
-description = "Computer automation, visual recording, MCP and web interfaces for KVMs"
+description = "WireHand: agentless device control, visual recording and automation over video and HID"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "aiortc>=1.14,<2",
@@ -11,6 +13,7 @@ dependencies = [
     "mcp>=1.12,<2",
     "numpy>=2,<3",
     "opencv-python-headless>=4.10,<5",
+    "pdoc>=16,<17",
     "pillow>=11,<13",
     "python-xlib>=0.33,<1",
     "starlette>=0.40,<2",
@@ -18,19 +21,20 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-kvm-mcp = "kvm.cli.main:mcp_main"
-kvm-web = "kvm.cli.main:web_main"
-kvm-inspect = "kvm.cli.inspect:main"
-rock5b-plus-gadget = "kvm.platforms.rock5b_plus.gadget:main"
-rock5b-plus-hdmi = "kvm.platforms.rock5b_plus.hdmi:main"
+wirehand-mcp = "wirehand.cli.main:mcp_main"
+wirehand-web = "wirehand.cli.main:web_main"
+wirehand-docs = "wirehand.cli.docs:main"
+wirehand-inspect = "wirehand.cli.inspect:main"
+rock5b-plus-gadget = "wirehand.platforms.rock5b_plus.gadget:main"
+rock5b-plus-hdmi = "wirehand.platforms.rock5b_plus.hdmi:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"kvm.interfaces.web" = ["static/*"]
-"kvm.platforms.rock5b_plus" = ["edid/*.bin"]
+"wirehand.interfaces.web" = ["static/*"]
+"wirehand.platforms.rock5b_plus" = ["edid/*.bin"]

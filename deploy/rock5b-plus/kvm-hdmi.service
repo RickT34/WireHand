@@ -1,7 +1,7 @@
 [Unit]
 Description=ROCK KVM RGB HDMI input profile
 After=systemd-modules-load.service
-Before=kvm-web.service
+Before=wirehand-web.service
 
 [Service]
 Type=oneshot

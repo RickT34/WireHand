@@ -8,8 +8,8 @@ from fractions import Fraction
 import av
 from PIL import Image,ImageDraw
 
-from kvm.core.media import EncodedHub
-from kvm.interfaces.web.video.h264 import H264Relay, SendWindow, FragmentMuxer, EncodedFrame, nal_units
+from wirehand.core.media import EncodedHub
+from wirehand.interfaces.web.video.h264 import H264Relay, SendWindow, FragmentMuxer, EncodedFrame, nal_units
 
 
 def encoded_fixture(count=35):
@@ -124,8 +124,8 @@ class CodecTests(unittest.TestCase):
 class WebSocketTests(unittest.TestCase):
     def app(self, runtime, **options):
         from tests.fakes import FakeBackend
-        from kvm.interfaces.web.app import make_app
-        from kvm.core.ownership import InputGate
+        from wirehand.interfaces.web.app import make_app
+        from wirehand.core.ownership import InputGate
         from pathlib import Path
         packets=encoded_fixture()
         class Video:
@@ -153,7 +153,7 @@ class WebSocketTests(unittest.TestCase):
         import tempfile,json
         from starlette.testclient import TestClient
         from starlette.websockets import WebSocketDisconnect
-        from kvm.interfaces.web.video.h264 import HEADER
+        from wirehand.interfaces.web.video.h264 import HEADER
         with tempfile.TemporaryDirectory() as directory:
             app=self.app(directory)
             with TestClient(app) as client:

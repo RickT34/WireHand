@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="520" viewBox="0 0 1440 520" role="img" aria-labelledby="title desc">
+  <title id="title">WireHand · 接手工作原理</title>
+  <desc id="desc">左侧被控设备无需安装软件，将 HDMI 画面送到中间的 KVM 设备，接收 KVM 模拟的 USB 键鼠输入。右侧的人通过浏览器、agent 通过 MCP，经网络与 WireHand 交互。</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#29465b" flood-opacity=".07"/></filter>
+    <marker id="blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1L9 5L1 9" fill="none" stroke="#5286c6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1L9 5L1 9" fill="none" stroke="#ca8b39" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="purple" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="#8470bb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  </defs>
+  <style>text{font-family:"Noto Sans CJK SC","Microsoft YaHei",Arial,sans-serif} .heading{font-size:25px;font-weight:600;fill:#233c50}.label{font-size:21px;font-weight:500}.muted{font-size:18px;fill:#637887}.outline{fill:none;stroke:#3f5e75;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}</style>
+  <rect width="1440" height="520" rx="22" fill="#f5f8fa"/>
+  <text x="42" y="57" font-size="29" font-weight="700" fill="#224835">WireHand · 接手</text>
+  <text x="1398" y="55" font-size="22" text-anchor="end" fill="#687b89">接上线，就接手。</text>
+
+  <!-- Three participants -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="98" width="340" height="365" rx="20" fill="#ffffff" stroke="#dbe5ed" stroke-width="1.5"/>
+    <rect x="550" y="98" width="340" height="365" rx="20" fill="#f5fcf8" stroke="#b4d8c4" stroke-width="1.5"/>
+    <rect x="1060" y="98" width="340" height="365" rx="20" fill="#ffffff" stroke="#dbe5ed" stroke-width="1.5"/>
+  </g>
+  <text x="210" y="150" text-anchor="middle" class="heading">被控电子设备</text>
+  <text x="720" y="150" text-anchor="middle" class="heading">KVM 设备</text>
+  <text x="1230" y="150" text-anchor="middle" class="heading">远程操作端</text>
+
+  <!-- Device: monitor and keyboard -->
+  <rect x="108" y="206" width="204" height="127" rx="10" fill="#eaf3ff" stroke="#5286c6" stroke-width="3.5"/>
+  <path d="M109 310H311" stroke="#5286c6" stroke-width="3"/>
+  <path d="M191 334V355M229 334V355M169 356H251" class="outline"/>
+  <rect x="132" y="229" width="84" height="9" rx="4.5" fill="#9fc2e9"/>
+  <rect x="132" y="250" width="146" height="7" rx="3.5" fill="#c2d9f0"/>
+  <rect x="132" y="268" width="115" height="7" rx="3.5" fill="#c2d9f0"/>
+  <rect x="132" y="373" width="156" height="21" rx="5" fill="#f0f5f8" stroke="#91a5b5" stroke-width="2"/>
+  <path d="M146 381H274M153 387H267" stroke="#a6b8c6" stroke-width="2" stroke-dasharray="8 5"/>
+  <rect x="126" y="415" width="168" height="29" rx="14.5" fill="#e6f4eb"/>
+  <text x="210" y="435" text-anchor="middle" font-size="18" font-weight="600" fill="#397b56">无需安装软件</text>
+
+  <!-- KVM: board with ports, chip, and traces -->
+  <rect x="621" y="205" width="198" height="153" rx="13" fill="#d5ecde" stroke="#4f9672" stroke-width="3"/>
+  <g fill="#f5fcf8" stroke="#80b499" stroke-width="2">
+    <circle cx="635" cy="219" r="4"/><circle cx="805" cy="219" r="4"/><circle cx="635" cy="344" r="4"/><circle cx="805" cy="344" r="4"/>
+    <rect x="611" y="237" width="20" height="28" rx="3"/><rect x="611" y="295" width="20" height="31" rx="3"/>
+    <rect x="811" y="260" width="21" height="36" rx="3"/>
+  </g>
+  <g fill="none" stroke="#8bb69d" stroke-width="3" stroke-linejoin="round">
+    <path d="M632 251H661V263H685M632 309H662V289H685M754 264H779V278H811M754 290H784V315H799"/>
+    <path d="M702 241V223H670M738 241V223H769M702 310V333H672M738 310V332H770"/>
+  </g>
+  <rect x="685" y="241" width="70" height="70" rx="9" fill="#397c58"/>
+  <text x="720" y="290" text-anchor="middle" font-family="Arial,sans-serif" font-size="43" font-weight="700" fill="#effbf3">W</text>
+  <text x="720" y="399" text-anchor="middle" font-size="25" font-weight="700" fill="#2c6548">WireHand</text>
+  <text x="720" y="433" text-anchor="middle" class="muted">当前适配：ROCK 5B+</text>
+
+  <!-- Human using a laptop -->
+  <circle cx="1158" cy="228" r="20" fill="#fff2df" stroke="#bc9456" stroke-width="3"/>
+  <path d="M1126 274C1130 248 1186 248 1190 274" fill="#fff2df" stroke="#bc9456" stroke-width="3"/>
+  <rect x="1116" y="272" width="84" height="55" rx="5" fill="#edf4fb" stroke="#5d7f99" stroke-width="3"/>
+  <path d="M1107 334H1209L1202 342H1114Z" fill="#dce8f1" stroke="#5d7f99" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="1158" cy="299" r="5" fill="#a0bbcf"/>
+  <text x="1158" y="380" text-anchor="middle" class="label" fill="#4c6273">人</text>
+  <text x="1158" y="411" text-anchor="middle" class="muted">网页浏览器</text>
+
+  <!-- Agent robot -->
+  <path d="M1305 224V207" stroke="#8470bb" stroke-width="3"/>
+  <circle cx="1305" cy="202" r="5" fill="#a490cf"/>
+  <rect x="1268" y="228" width="74" height="65" rx="15" fill="#f0ebfa" stroke="#8470bb" stroke-width="3"/>
+  <circle cx="1289" cy="253" r="6" fill="#8470bb"/><circle cx="1321" cy="253" r="6" fill="#8470bb"/>
+  <path d="M1293 276H1317" stroke="#8470bb" stroke-width="3" stroke-linecap="round"/>
+  <path d="M1261 247V273M1349 247V273" stroke="#a490cf" stroke-width="5" stroke-linecap="round"/>
+  <rect x="1280" y="305" width="50" height="31" rx="8" fill="#f0ebfa" stroke="#8470bb" stroke-width="3"/>
+  <path d="M1270 314L1258 327M1340 314L1352 327" stroke="#8470bb" stroke-width="3" stroke-linecap="round"/>
+  <text x="1305" y="380" text-anchor="middle" class="label" fill="#66538f">Agent</text>
+  <text x="1305" y="411" text-anchor="middle" class="muted">MCP 客户端</text>
+
+  <!-- Signal directions -->
+  <path d="M386 233H539" fill="none" stroke="#5286c6" stroke-width="3" marker-end="url(#blue)"/>
+  <text x="465" y="211" text-anchor="middle" class="label" fill="#4778b4">HDMI 画面</text>
+  <path d="M544 333H391" fill="none" stroke="#ca8b39" stroke-width="3" marker-end="url(#orange)"/>
+  <text x="465" y="368" text-anchor="middle" class="label" fill="#aa752d">USB 键鼠</text>
+  <path d="M902 283H1048" fill="none" stroke="#8470bb" stroke-width="3" marker-start="url(#purple)" marker-end="url(#purple)"/>
+  <text x="975" y="257" text-anchor="middle" class="label" fill="#7660a9">网络</text>
+  <text x="975" y="321" text-anchor="middle" font-size="17" fill="#718394">画面 ↔ 操作</text>
+</svg>

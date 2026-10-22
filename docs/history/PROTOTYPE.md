@@ -1,14 +1,14 @@
 # ROCK 5B+ KVM MCP 原型（历史归档）
 
-> 以下记录保留重构前的部署状态和旧命令。当前代码结构、启动入口和部署方式以 [项目 README](../../README.md) 和 [平台部署说明](../rock5b-plus/README.md) 为准。本文不是当前安装指南。
+> 主机名与地址已替换为示例值。以下记录保留重构前的部署状态和旧命令。当前代码结构、启动入口和部署方式以 [项目 README](../../README.md) 和 [平台部署说明](../rock5b-plus/README.md) 为准。本文不是当前安装指南。
 
-用板载 HDMI IN 采集被控电脑屏幕，用 USB gadget 模拟键盘与绝对坐标鼠标，通过 SSH stdio 提供 MCP。被控电脑无需安装代理。MCP 客户端运行在可以 `ssh r5p` 的机器上。
+用板载 HDMI IN 采集被控电脑屏幕，用 USB gadget 模拟键盘与绝对坐标鼠标，通过 SSH stdio 提供 MCP。被控电脑无需安装代理。MCP 客户端运行在可以 `ssh rock-kvm` 的机器上。
 
-2026-10-19 最新部署：vendor 内核下已启用 **MPP H.264 + WebRTC**，真实 HDMI 完整传输与接收端解码实测约 **1080p60 / 7 Mbit/s**。网页直接使用 video 元素播放，保留 5fps JPEG 兼容画面和 MCP 截图。驱动安装记录见 [MPP_SETUP.md](../rock5b-plus/MPP_SETUP.md)，WebRTC 配置与证据见 [WEBRTC.md](../rock5b-plus/WEBRTC.md)。下文 VEPU121/DMA-BUF 性能记录来自切换前的主线内核阶段。
+2026-10-19 最新部署：vendor 内核下已启用 **MPP H.264 + WebRTC**，真实 HDMI 完整传输与接收端解码实测约 **1080p60 / 7 Mbit/s**。网页直接使用 video 元素播放，保留 5fps JPEG 兼容画面和 MCP 截图。驱动安装记录见 [MPP_SETUP.md](rock5b-plus/MPP_SETUP.md)，WebRTC 配置与证据见 [WEBRTC.md](rock5b-plus/WEBRTC.md)。下文 VEPU121/DMA-BUF 性能记录来自切换前的主线内核阶段。
 
 ## 网页控制台
 
-打开 **http://192.168.50.152:8080/**。本机 `web-access.txt` 保存访问密码（权限 0600，不入版本控制）；远端密码配置为 `/etc/kvm-mcp.env`。服务 `kvm-web.service` 和 `kvm-hdmi.service` 已启动并启用开机加载。当前 HTTP 服务用于受信任局域网，跨公网访问需另配 HTTPS 或 SSH 隧道。
+打开 **http://192.0.2.10:8080/**。本机 `web-access.txt` 保存访问密码（权限 0600，不入版本控制）；远端密码配置为 `/etc/kvm-mcp.env`。服务 `kvm-web.service` 和 `kvm-hdmi.service` 已启动并启用开机加载。当前 HTTP 服务用于受信任局域网，跨公网访问需另配 HTTPS 或 SSH 隧道。
 
 页面支持实时画面、全屏、鼠标拖动/点击/滚轮、键盘按下/释放和组合键菜单。默认只查看，点击“接管控制”才会发送输入。一个浏览器独占控制期间，MCP 输入被后端阻止，MCP 截图仍可使用。切换窗口会释放按键；浏览器断开后释放 HID，MCP 继续暂停，直到明确点击“交还 MCP”。连接无响应的控制会话最长约 7 秒后释放。
 
@@ -58,10 +58,10 @@ RGB 配置应用后，实机采集颜色恢复。当时 Mac 选择 1080p30；后
 原 EDID 恢复流程（会重新协商显示模式）：
 
 ```sh
-ssh r5p 'systemctl stop kvm-web'
-ssh r5p 'systemctl disable --now kvm-hdmi'
-ssh r5p '/opt/kvm-mcp/.venv/bin/python /opt/kvm-mcp/configure_hdmi.py --restore'
-ssh r5p 'systemctl start kvm-web'
+ssh rock-kvm 'systemctl stop kvm-web'
+ssh rock-kvm 'systemctl disable --now kvm-hdmi'
+ssh rock-kvm '/opt/kvm-mcp/.venv/bin/python /opt/kvm-mcp/configure_hdmi.py --restore'
+ssh rock-kvm 'systemctl start kvm-web'
 ```
 
 恢复原 EDID 可能再次协商为 NV24；当前网页会明确报格式不支持，而不是继续显示错误颜色。
@@ -70,7 +70,7 @@ ssh r5p 'systemctl start kvm-web'
 
 已安装官方 `linux-image-vendor-rk35xx=26.8.3` 及匹配设备树，并重启进入 `6.1.115-vendor-rk35xx`。内核启用了 MPP、HDMI RX、RGA 和 USB HID，配套 `jellyfin-ffmpeg7` 提供 MPP/RGA 用户态组件。
 
-真实 HDMI → RGA → `h264_rkmpp` 已完成编码验证；随后 WebRTC 完整接收端实测 613 帧 / 10.159 秒，约 60fps。详见 [MPP_SETUP.md](../rock5b-plus/MPP_SETUP.md) 和 [WEBRTC.md](../rock5b-plus/WEBRTC.md)。
+真实 HDMI → RGA → `h264_rkmpp` 已完成编码验证；随后 WebRTC 完整接收端实测 613 帧 / 10.159 秒，约 60fps。详见 [MPP_SETUP.md](rock5b-plus/MPP_SETUP.md) 和 [WEBRTC.md](rock5b-plus/WEBRTC.md)。
 
 ## 接线
 
@@ -83,28 +83,28 @@ ssh r5p 'systemctl start kvm-web'
 
 ## 主线内核阶段的部署与证据（2026-10-19，历史记录）
 
-- 主机：`r5p` / `192.168.50.152`，Armbian 26.2.6 / Debian 13，内核 `6.18.28-current-rockchip64`。
+- 主机：`rock-kvm` / `192.0.2.10`，Armbian 26.2.6 / Debian 13，内核 `6.18.28-current-rockchip64`。
 - HDMI：`snps_hdmirx`，当前 `/dev/video3`，支持 Video Capture Multiplanar；通过设备名称动态查找，避免重启编号变化。
 - USB：`fc000000.usb`，已绑定复合 HID gadget，生成 `/dev/hidg0` 与 `/dev/hidg1`；按 configfs 的设备号查找，不硬编码 hidg 编号。
 - 程序：远端 `/opt/kvm-mcp`；虚拟环境 `/opt/kvm-mcp/.venv`。
 - `kvm-gadget.service` 已启动、启用开机加载，并通过服务重启检查。尚未进行整机重启验证。
-- MCP 进程由 SSH 会话按需启动；SSH 负责认证。网页服务监听 8080，使用独立密码登录。当前使用现有 `r5p` 的 root 登录配置。
+- MCP 进程由 SSH 会话按需启动；SSH 负责认证。网页服务监听 8080，使用独立密码登录。当前使用现有 `rock-kvm` 的 root 登录配置。
 - 当前真实 HDMI 为 1920×1080、30Hz、BGR3；USB 为 `configured`。初始未接线时的 640×480 是默认时序，不代表有输入信号。
 - 已通过本地 HID 报告/输入校验/释放行为测试，以及真实 SSH MCP 初始化、工具枚举、状态查询、无信号截图错误测试。
 - 真实 HDMI 截图与视频传输已验证，USB 已枚举；真实操作手感、60Hz、分辨率切换及断线重连仍需进一步验收。
 
-安装依赖时使用临时代理 `192.168.50.1:7890`。新系统时钟原本停在 5 月，已按控制机时间手动校正。Armbian 软件源当时返回 502，因此仅更新 Debian 软件源索引完成依赖安装，未替换内核或关闭签名校验。
+安装依赖时使用临时代理 `192.0.2.1:7890`。新系统时钟原本停在 5 月，已按控制机时间手动校正。Armbian 软件源当时返回 502，因此仅更新 Debian 软件源索引完成依赖安装，未替换内核或关闭签名校验。
 
 ## 连接 MCP
 
-将 `mcp-config.json` 中的服务器条目加入支持 stdio 的 MCP 客户端。客户端必须能无交互地执行 `ssh r5p`，且不能向 SSH 分配终端。
+将 `mcp-config.json` 中的服务器条目加入支持 stdio 的 MCP 客户端。客户端必须能无交互地执行 `ssh rock-kvm`，且不能向 SSH 分配终端。
 
 ```json
 {
   "mcpServers": {
     "rock-kvm": {
       "command": "ssh",
-      "args": ["-T", "-o", "BatchMode=yes", "r5p", "/opt/kvm-mcp/.venv/bin/python", "/opt/kvm-mcp/server.py"]
+      "args": ["-T", "-o", "BatchMode=yes", "rock-kvm", "/opt/kvm-mcp/.venv/bin/python", "/opt/kvm-mcp/server.py"]
     }
   }
 }
@@ -132,17 +132,17 @@ apt-get install --no-install-recommends python3-venv v4l-utils gstreamer1.0-tool
 在本项目目录同步代码，然后安装：
 
 ```sh
-ssh r5p 'mkdir -p /opt/kvm-mcp'
-scp hid.py gadget.py server.py requirements.txt kvm-gadget.service r5p:/opt/kvm-mcp/
-scp video.py web_control.py web_server.py kvm-web.service r5p:/opt/kvm-mcp/
-scp rtc_video.py r5p:/opt/kvm-mcp/
-scp configure_hdmi.py kvm-hdmi.service r5p:/opt/kvm-mcp/
-scp -r edid r5p:/opt/kvm-mcp/
-scp -r static r5p:/opt/kvm-mcp/
-ssh r5p 'python3 -m venv /opt/kvm-mcp/.venv'
-ssh r5p 'env http_proxy=http://192.168.50.1:7890 https_proxy=http://192.168.50.1:7890 /opt/kvm-mcp/.venv/bin/pip install -r /opt/kvm-mcp/requirements.txt'
-ssh r5p 'install -m 644 /opt/kvm-mcp/kvm-gadget.service /etc/systemd/system/kvm-gadget.service'
-ssh r5p 'systemctl daemon-reload && systemctl enable --now kvm-gadget.service'
+ssh rock-kvm 'mkdir -p /opt/kvm-mcp'
+scp hid.py gadget.py server.py requirements.txt kvm-gadget.service rock-kvm:/opt/kvm-mcp/
+scp video.py web_control.py web_server.py kvm-web.service rock-kvm:/opt/kvm-mcp/
+scp rtc_video.py rock-kvm:/opt/kvm-mcp/
+scp configure_hdmi.py kvm-hdmi.service rock-kvm:/opt/kvm-mcp/
+scp -r edid rock-kvm:/opt/kvm-mcp/
+scp -r static rock-kvm:/opt/kvm-mcp/
+ssh rock-kvm 'python3 -m venv /opt/kvm-mcp/.venv'
+ssh rock-kvm 'env http_proxy=http://192.0.2.1:7890 https_proxy=http://192.0.2.1:7890 /opt/kvm-mcp/.venv/bin/pip install -r /opt/kvm-mcp/requirements.txt'
+ssh rock-kvm 'install -m 644 /opt/kvm-mcp/kvm-gadget.service /etc/systemd/system/kvm-gadget.service'
+ssh rock-kvm 'systemctl daemon-reload && systemctl enable --now kvm-gadget.service'
 ```
 
 修改 HID 描述符后需重启 gadget 服务，目标电脑会重新枚举 USB。
@@ -150,7 +150,7 @@ ssh r5p 'systemctl daemon-reload && systemctl enable --now kvm-gadget.service'
 首次启用网页前，在远端生成独立密码配置（保存后只需执行一次；不会覆盖已有配置）：
 
 ```sh
-ssh r5p 'python3 -' <<'PY'
+ssh rock-kvm 'python3 -' <<'PY'
 from pathlib import Path
 import secrets
 path = Path('/etc/kvm-mcp.env')
@@ -159,13 +159,13 @@ if not path.exists():
         path.chmod(0o600)
         stream.write('KVM_TOKEN=' + secrets.token_urlsafe(24) + '\nKVM_PORT=8080\nKVM_VIDEO_MODE=hardware\n')
 PY
-ssh r5p 'install -m 644 /opt/kvm-mcp/kvm-web.service /etc/systemd/system/kvm-web.service'
-ssh r5p 'install -m 644 /opt/kvm-mcp/kvm-hdmi.service /etc/systemd/system/kvm-hdmi.service'
-ssh r5p 'systemctl daemon-reload && systemctl enable --now kvm-hdmi'
-ssh r5p 'systemctl daemon-reload && systemctl enable --now kvm-web'
+ssh rock-kvm 'install -m 644 /opt/kvm-mcp/kvm-web.service /etc/systemd/system/kvm-web.service'
+ssh rock-kvm 'install -m 644 /opt/kvm-mcp/kvm-hdmi.service /etc/systemd/system/kvm-hdmi.service'
+ssh rock-kvm 'systemctl daemon-reload && systemctl enable --now kvm-hdmi'
+ssh rock-kvm 'systemctl daemon-reload && systemctl enable --now kvm-web'
 ```
 
-`KVM_HOSTS` 可设为逗号分隔的允许访问主机名/IP（不含端口）；默认允许当前局域网 IP、r5p、rock-5b-plus、localhost、127.0.0.1。IP 改变时同步更新。更新网页代码后执行 `ssh r5p 'systemctl restart kvm-web'`。
+`KVM_HOSTS` 可设为逗号分隔的允许访问主机名/IP（不含端口）；默认允许当前局域网 IP、rock-kvm、rock-5b-plus、localhost、127.0.0.1。IP 改变时同步更新。更新网页代码后执行 `ssh rock-kvm 'systemctl restart kvm-web'`。
 
 ## 检查与停用
 
@@ -177,17 +177,17 @@ uv run python smoke_mcp.py
 uv run python smoke_web.py
 uv run python smoke_web.py --frames 120 --live
 uv run python smoke_rtc.py --seconds 10
-ssh r5p 'systemctl status kvm-web --no-pager'
-ssh r5p 'systemctl status kvm-gadget --no-pager'
-ssh r5p 'v4l2-ctl -d /dev/video3 --query-dv-timings'
-ssh r5p 'cat /sys/class/udc/*/state'
+ssh rock-kvm 'systemctl status kvm-web --no-pager'
+ssh rock-kvm 'systemctl status kvm-gadget --no-pager'
+ssh rock-kvm 'v4l2-ctl -d /dev/video3 --query-dv-timings'
+ssh rock-kvm 'cat /sys/class/udc/*/state'
 ```
 
 只有 HDMI 与 USB 均未连接时使用 `uv run python smoke_mcp.py --disconnected` 检查无信号错误。`smoke_web.py` 默认测试无 HDMI 信号场景，读取本机 `web-access.txt`，不会发送实际 HID 输入。
 
-停用并撤销开机加载：`ssh r5p 'systemctl disable --now kvm-gadget'`。这会解除本项目的 USB gadget 绑定并清理其 configfs 项目。
+停用并撤销开机加载：`ssh rock-kvm 'systemctl disable --now kvm-gadget'`。这会解除本项目的 USB gadget 绑定并清理其 configfs 项目。
 
-仅停用网页：`ssh r5p 'systemctl disable --now kvm-web'`。手动接管标记位于 `/run/kvm-mcp/human-control`；停用网页不会自动解除 MCP 暂停，需重新启动网页并明确交还控制。重启整机后 `/run` 中的临时状态会清除。
+仅停用网页：`ssh rock-kvm 'systemctl disable --now kvm-web'`。手动接管标记位于 `/run/kvm-mcp/human-control`；停用网页不会自动解除 MCP 暂停，需重新启动网页并明确交还控制。重启整机后 `/run` 中的临时状态会清除。
 
 ## 能力范围
 

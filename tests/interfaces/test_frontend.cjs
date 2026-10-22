@@ -7,7 +7,7 @@ const vm=require('node:vm');
 function page(extra={}){
   const nodes=new Map(), sockets=[];
   function element(id){
-    if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',focusCount:0,
+    if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',value:'',focusCount:0,
       classList:{toggle(){},add(){},remove(){}},addEventListener(){},
       focus(){this.focusCount++;},getContext(){return {drawImage(){}};}});
     return nodes.get(id);
@@ -19,10 +19,10 @@ function page(extra={}){
     close(){this.readyState=3;}
   }
   const context=vm.createContext({document:{getElementById:element,addEventListener(){}},
-    window:{addEventListener(){}},location:{protocol:'http:',host:'example'},
+    window:{addEventListener(){},dispatchEvent(){}},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init.detail;}},location:{protocol:'http:',host:'example'},
     performance:{now:()=>0},WebSocket:Socket,setTimeout(){},setInterval(){},
     fetch:()=>new Promise(()=>{}),Blob,console,...extra});
-  vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/kvm/interfaces/web/static/app.js'),'utf8'),context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/wirehand/interfaces/web/static/app.js'),'utf8'),context);
   return {nodes,sockets,run:code=>vm.runInContext(code,context)};
 }
 
@@ -224,4 +224,15 @@ test('failure diagnostics distinguish network from decoder failures',()=>{
   assert.match(p.run('failureReason()'),/尚未进入解码/);
   p.run("rtcDiagnostic={connection:'connected',bytesReceived:1000,framesDecoded:0}");
   assert.match(p.run('failureReason()'),/解码帧数为 0/);
+});
+
+test('takeover and release acknowledgements immediately update the mode and buttons',()=>{
+  const p=page();
+  p.sockets[0].onmessage({data:JSON.stringify({ok:true,controlling:true,control:{manual:true,connected:true}})});
+  assert.equal(p.nodes.get('mode-label').textContent,'接管模式');
+  assert.equal(p.nodes.get('give').hidden,false);
+  p.sockets[0].onmessage({data:JSON.stringify({ok:true,controlling:false,control:{manual:false,connected:false}})});
+  assert.equal(p.nodes.get('mode-label').textContent,'非接管模式');
+  assert.equal(p.nodes.get('give').hidden,true);
+  assert.match(p.nodes.get('hint').textContent,/可运行脚本/);
 });

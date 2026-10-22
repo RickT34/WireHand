@@ -1,0 +1,19 @@
+[Unit]
+Description=WireHand web console (ROCK 5B+ deployment)
+After=network.target kvm-gadget.service kvm-hdmi.service
+Wants=kvm-hdmi.service
+Requires=kvm-gadget.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kvm-mcp
+EnvironmentFile=/etc/kvm-mcp.env
+ExecStart=/opt/kvm-mcp/.venv/bin/wirehand-web --backend rock5b-plus
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=10
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

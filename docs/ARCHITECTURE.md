@@ -1,11 +1,13 @@
 # 架构与扩展约定
 
+[返回文档导航](README.md)
+
 ## 一个项目，按职责分目录
 
-根目录的 `pyproject.toml` 是唯一的安装配置；`uv sync --frozen` 安装整个项目，`uv build` 生成一个 wheel 和一个源码归档。Python 导入统一使用 `kvm` 命名空间。
+根目录的 `pyproject.toml` 是唯一的安装配置；`uv sync --frozen` 安装整个项目，`uv build` 生成一个 wheel 和一个源码归档。Python 导入统一使用 `wirehand` 命名空间。
 
 ```text
-src/kvm/
+src/wirehand/
 ├── core/
 │   ├── contracts.py            Backend、InputSession、VideoSource 协议
 │   ├── media.py                编码帧发布与订阅
@@ -20,11 +22,12 @@ src/kvm/
 ├── automation/
 │   ├── computer.py             Python 操作 API、等待、取消与重放执行
 │   ├── inspection.py           快照会话、分页、细化、点击前校验
+│   ├── scripts/               本地脚本库与子进程运行器
 │   └── recording/
 │       ├── schema.py / model.py 数据校验、加载与目标引用
-│       ├── anchors.py          选择可唯一匹配的模板并保存图片
+│       ├── anchors.py          截取点击附近的元素并保存图片
 │       ├── recorder.py         录制生命周期与动作归并
-│       ├── session.py          输入会话包装：操作前截图、成功后记录
+│       ├── session.py          输入会话包装：鼠标按下前截图、成功后记录
 │       └── script.py / archive.py Python 脚本生成与 ZIP 导出
 ├── platforms/
 │   ├── registry.py             内置名称与 module:factory 的延迟加载
@@ -36,7 +39,7 @@ src/kvm/
 │   └── web/
 │       ├── app.py / services.py 组装、资源生命周期与应用实例状态
 │       ├── auth.py / control.py 登录、浏览器键位与控制会话
-│       ├── routes/            页面、状态、控制、视频和录制下载路由
+│       ├── routes/            页面、状态、控制、视频和脚本管理路由
 │       ├── video/             H.264 WebSocket 与 WebRTC 传输
 │       └── static/            HTML、CSS、JavaScript
 ├── cli/                       服务启动与离线视觉检查命令
@@ -98,7 +101,7 @@ H.264 平台在同一个 asyncio 事件循环中调用 `encoded.publish(data, pt
 
 同一目标的所有进程共用 `KVM_RUNTIME`。`core/locking.py` 只提供互斥；`core/ownership.py` 在互斥内检查 `human-control` 标记，平台不知道“人工”或“MCP”。
 
-1. MCP 输入获取 `input.lock`，检查接管标记，再打开输入会话。结束后推进 `input-revision`，使其他进程中的旧视觉快照失效。
+1. MCP 所有工具先检查接管状态，接管时返回错误。MCP 输入获取 `input.lock`，检查接管标记，再打开输入会话。结束后推进 `input-revision`，使其他进程中的旧视觉快照失效。
 2. 浏览器接管获取同一把锁，打开输入会话，创建标记并释放残留按键；持锁直至断开或交还。获取和释放人工会话均推进 revision。
 3. 正常断开、七秒无消息超时或输入错误会释放键鼠和会话，在持锁期间删除接管标记，然后交还输入锁。释放失败仍结束接管，错误会被报告或记录。
 4. 明确交还与断开使用同一条清理路径。进程被强制终止时，重启会在获取输入锁后尝试释放遗留按键并删除旧标记；获取不到锁时不打断其他活动会话。
@@ -107,16 +110,16 @@ ROCK 适配器额外使用 `video.lock` 协调长时间采集与独立截图，�
 
 ## 扩展入口
 
-新增平台时，在 `src/kvm/platforms/<name>/` 内实现接受 `runtime: Path` 的工厂或类，遵循 `core/contracts.py`。通过完整工厂路径启动即可：
+新增平台时，在 `src/wirehand/platforms/<name>/` 内实现接受 `runtime: Path` 的工厂或类，遵循 `core/contracts.py`。通过完整工厂路径启动即可：
 
 ```sh
-kvm-web --backend kvm.platforms.my_platform.backend:create_backend
-kvm-mcp --backend kvm.platforms.my_platform.backend:create_backend
+wirehand-web --backend wirehand.platforms.my_platform.backend:create_backend
+wirehand-mcp --backend wirehand.platforms.my_platform.backend:create_backend
 ```
 
 常用内置平台可在 `platforms/registry.py` 的 `BUILTINS` 中增加一个名称，不需要新的安装包或 entry point。初始化脚本、驱动配置和专用资源放在平台目录。
 
-`docker-desktop` 是容器内的 X11 适配器，构造时不访问显示器。Compose 负责桌面生命周期和数据卷；平台通过 XTEST 发送输入、读取 Xvfb 根窗口生成 JPEG，以 5fps 的最新帧源接入现有网页。MCP 通过 `desktopctl mcp` 在同一容器内运行，共用输入锁；不额外开放 VNC 或自建控制权协议。部署配置位于 `deploy/docker-desktop/`，见 [Docker 桌面](DOCKER_DESKTOP.md)。
+`docker-desktop` 是容器内的 X11 适配器，构造时不访问显示器。Compose 负责桌面生命周期和数据卷；平台通过 XTEST 发送输入、读取 Xvfb 根窗口生成 JPEG，以 5fps 的最新帧源接入现有网页。MCP 通过 `deploy/docker-desktop/desktopctl mcp` 在同一容器内运行，共用输入锁；不额外开放 VNC 或自建控制权协议。部署配置位于 `deploy/docker-desktop/`，见 [Docker 桌面](DOCKER_DESKTOP.md)。
 
 扩展视觉检测时，实现 `vision/models.py` 的 `Detector.detect(image)`，向 `Inspector` 或 `Recorder` 注入；扩展录制动作时，同时更新 `recording/schema.py`、事件归并及 `Computer` 的执行方法。脚本生成器只输出可编辑的 Python 调用，不依赖 MCP、HTTP 或模型服务。
 
@@ -126,10 +129,10 @@ kvm-mcp --backend kvm.platforms.my_platform.backend:create_backend
 
 ```sh
 # 离线标注与分页检查
-uv run kvm-inspect /path/to/screen.png --output artifacts/vision/check
+uv run wirehand-inspect /path/to/screen.png --output artifacts/vision/check
 
 # 在同一张图片上调试 MCP 观察工具，不提供输入和视频流
-KVM_SCREENSHOT=/path/to/screen.png uv run kvm-mcp --backend image --runtime /tmp/kvm-image
+KVM_SCREENSHOT=/path/to/screen.png uv run wirehand-mcp --backend image --runtime /tmp/kvm-image
 
 # 可操作的模拟网页与录制
 uv run python examples/web_recording_demo.py
@@ -137,8 +140,19 @@ uv run python examples/web_recording_demo.py
 
 ## 入口与录制数据
 
-SDK 连接入口是 `from kvm import connect`；显式注入使用 `from kvm.automation import Computer`。视觉目标从 `kvm.vision` 导入。根目录不保留旧命名空间、子项目配置或兼容别名，已有脚本需更新导入和连接调用。
+SDK 连接入口是 `from wirehand import connect`；显式注入使用 `from wirehand.automation import Computer`。视觉目标从 `wirehand.vision` 导入。各模块位于同一安装包中；硬件适配、自动化和应用通过接口连接。
 
-安装后仍使用 `kvm-mcp`、`kvm-web`、`kvm-inspect` 和平台初始化命令。静态文件与 EDID 随同一个 wheel 分发。
+安装后使用 `wirehand-mcp`、`wirehand-web`、`wirehand-inspect`、`wirehand-docs` 和平台初始化命令。静态文件与 EDID 随同一个 wheel 分发。
 
 视觉快照编号只属于短期观察。录制脚本使用 `VisualTarget` 的图像、点偏移和参考尺寸重新匹配，不持久化旧编号；新生成的脚本使用 `connect()`。录制与重放格式见 [AUTOMATION.md](AUTOMATION.md)。
+
+## 脚本库与 SDK 文档
+
+`automation/scripts` 负责脚本的本地存储、同名替换、子进程执行、重复次数和停止；
+它不依赖网页路由。每个任务持有跨进程的 `automation-job.lock`，通过 `automation-owner`
+为子进程预留自动输入；浏览器接管先停止任务。每轮启动 `cli/run_script.py` 执行实际的
+`replay.py`，支持用户修改脚本并上传，而不绕过修改去执行录制 JSON。
+
+网页通过 `routes/recordings.py` 处理认证和冲突，通过 `static/scripts.js` 呈现脚本列表与执行状态。
+SDK 文档首次访问时由 `cli/docs.py` 调用 pdoc 生成，网页只提供鉴权和静态文件路由。
+部署、压缩包规范和停止语义见 [网页控制台](WEB_CONSOLE.md)。

@@ -6,10 +6,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from kvm.automation import Computer, Recorder, Recording, AutomationInterrupted
-from kvm.vision import TargetNotFound, AmbiguousTarget
-from kvm.core.ownership import InputGate
-from kvm.vision.matching import locate
+from wirehand.automation import Computer, Recorder, Recording, AutomationInterrupted
+from wirehand.vision import TargetNotFound, AmbiguousTarget
+from wirehand.core.ownership import InputGate
+from wirehand.vision.matching import locate
 from .helpers import ScreenBackend,screen
 
 
@@ -36,8 +36,8 @@ class RecordingTests(unittest.TestCase):
         script=(self.root/'demo/replay.py').read_text()
         ast.parse(script)
         self.assertIn('computer.click(target=flow.target(',script)
-        self.assertNotIn('kvm.interfaces',script)
-        self.assertNotIn('kvm.platforms',script)
+        self.assertNotIn('wirehand.interfaces',script)
+        self.assertNotIn('wirehand.platforms',script)
         self.assertTrue(flow.target(flow.steps[0]['args']['target']).image.exists())
 
     def test_replay_locates_moved_target_without_using_recorded_coordinates(self):
@@ -56,7 +56,7 @@ class RecordingTests(unittest.TestCase):
         self.record_click()
         replay=ScreenBackend(screen((240,170)))
         computer=Computer(replay,self.root/'runtime',timeout=.5,poll_interval=.001)
-        with patch('kvm.connect',return_value=computer):
+        with patch('wirehand.connect',return_value=computer):
             runpy.run_path(str(self.root/'demo/replay.py'),run_name='__main__')
         self.assertEqual(replay.events[0][0],'click')
         self.assertAlmostEqual(replay.events[0][1],290/479,delta=.005)
@@ -202,7 +202,7 @@ class RecordingTests(unittest.TestCase):
             flow.replay(Computer(replay,self.root/'runtime',timeout=.5,poll_interval=.001))
         self.assertEqual(len(replay.events),1)
 
-    def test_hover_opened_menu_is_preserved_and_replayed(self):
+    def test_hover_path_opens_menu_without_creating_a_target(self):
         from contextlib import contextmanager
         from PIL import ImageDraw,ImageFont
         from tests.fakes import FakeInput
@@ -238,7 +238,10 @@ class RecordingTests(unittest.TestCase):
         self.assertTrue(source.finished)
         flow=Recording.load(self.root/'menu')
         self.assertEqual([s['action'] for s in flow.steps],['move_path','click'])
-        moved=MenuBackend((240,70))
+        self.assertEqual(source.captures,1)
+        self.assertNotIn('target',flow.steps[0]['args'])
+        self.assertEqual(len(flow.data['targets']),1)
+        moved=MenuBackend((50,70))
         flow.replay(Computer(moved,self.root/'menu-replay',timeout=.5,poll_interval=.001))
         self.assertTrue(moved.finished)
 
@@ -260,7 +263,7 @@ class RecordingTests(unittest.TestCase):
         flow=Recording.load(self.root/'long-press')
         self.assertEqual(flow.steps[0]['args']['hold_ms'],1200)
 
-    def test_wheel_burst_is_one_visual_scroll_action(self):
+    def test_wheel_burst_is_one_scroll_action_without_a_visual_target(self):
         for _ in range(3):self.session.pointer(*self.point,0,-1)
         self.recorder.finish()
         flow=Recording.load(self.root/'demo')
@@ -280,3 +283,130 @@ class RecordingTests(unittest.TestCase):
         recorder.finish()
         flow=Recording.load(self.root/'released-hold')
         self.assertEqual(flow.steps[0]['args']['hold_ms'],800)
+
+    def test_keyboard_recording_and_replay_never_request_a_screenshot(self):
+        with patch.object(self.backend,'screenshot',side_effect=AssertionError('Keyboard must not capture')):
+            self.session.keys(['a']);self.session.keys([])
+            self.session.press_key(['enter'])
+            self.session.type_text('hello')
+            result=self.recorder.finish()
+            flow=Recording.load(self.root/'demo')
+            self.assertEqual(result['status'],'complete')
+            self.assertEqual(flow.data['targets'],{})
+            self.assertFalse(list((self.root/'demo/assets').iterdir()))
+            self.backend.events.clear()
+            flow.replay(Computer(self.backend,self.root/'runtime'))
+        self.assertEqual([s['action'] for s in flow.steps],['key_sequence','hotkey','write'])
+        self.assertIn(('press_key',['enter'],50),self.backend.events)
+        self.assertIn(('type_text','hello'),self.backend.events)
+        self.assertNotIn('flow.target(', (self.root/'demo/replay.py').read_text())
+
+    def test_hover_and_scroll_preserve_positions_without_capturing_any_frame(self):
+        with patch.object(self.backend,'screenshot',side_effect=AssertionError('Non-click must not capture')):
+            self.session.pointer(.2,.3)
+            self.session.pointer(.4,.5)
+            self.session.pointer(.6,.7,0,-2)
+            self.recorder.finish()
+            flow=Recording.load(self.root/'demo')
+            self.backend.events.clear()
+            flow.replay(Computer(self.backend,self.root/'runtime'))
+        self.assertEqual(flow.data['targets'],{})
+        self.assertEqual(self.backend.events,[('pointer',.2,.3,0,0),('pointer',.4,.5,0,0),('pointer',.6,.7,0,-2)])
+
+    def test_only_press_captures_and_later_inputs_do_not_depend_on_click_image(self):
+        self.session.click(*self.point,'left')
+        self.assertEqual(self.backend.captures,1)
+        with patch.object(self.backend,'screenshot',side_effect=AssertionError('No new click')):
+            self.session.type_text('hello')
+            self.session.press_key(['enter'])
+            self.session.pointer(.8,.8,0,-1)
+            self.recorder.finish()
+        flow=Recording.load(self.root/'demo')
+        self.assertEqual(len(flow.data['targets']),1)
+        self.assertEqual([s['action'] for s in flow.steps if 'target' in s['args']],['click'])
+        # A keyboard operation must run even when the screen has changed since the click.
+        from contextlib import contextmanager
+        from tests.fakes import FakeInput
+        from PIL import Image
+        replay=ScreenBackend()
+        @contextmanager
+        def connection():
+            class Input(FakeInput):
+                def click(inner,*args):
+                    super().click(*args)
+                    replay.image=Image.new('RGB',(480,320),'black')
+            yield Input(replay)
+        replay.open_input=connection
+        flow.replay(Computer(replay,self.root/'runtime',timeout=.1,poll_interval=.001))
+        self.assertIn(('type_text','hello'),replay.events)
+        self.assertIn(('press_key',['enter'],50),replay.events)
+
+    def test_drag_uses_one_frame_captured_before_press_changes_the_screen(self):
+        from contextlib import contextmanager
+        from PIL import Image
+        from tests.fakes import FakeInput
+        original=self.backend.image.copy()
+        @contextmanager
+        def connection():
+            class Input(FakeInput):
+                def pointer(inner,x,y,buttons=0,wheel=0):
+                    super().pointer(x,y,buttons,wheel)
+                    if buttons:self.backend.image=Image.new('RGB',(480,320),'black')
+            yield Input(self.backend)
+        with connection() as inner:
+            session=self.recorder.wrap(inner)
+            session.pointer(*self.point,1)
+            session.pointer(140/479,110/319,1)
+            session.pointer(180/479,130/319,0)
+        self.recorder.finish()
+        flow=Recording.load(self.root/'demo')
+        self.assertEqual(self.backend.captures,1)
+        self.assertEqual(flow.steps[0]['action'],'drag')
+        target=flow.target(flow.steps[0]['args']['target'])
+        self.assertAlmostEqual(locate(original,target).point[0],100,delta=3)
+
+    def test_blank_click_is_saved_as_local_patch_without_whole_screen_fallback(self):
+        from PIL import Image
+        self.backend.image=Image.new('RGB',(480,320),'black')
+        flow=self.record_click()
+        self.assertEqual(flow.data['status'],'complete')
+        target=next(iter(flow.data['targets'].values()))
+        self.assertEqual(target['strategy'],'patch')
+        with Image.open(self.root/'demo'/target['image']) as patch_image:
+            self.assertLess(patch_image.width,120)
+            self.assertLess(patch_image.height,120)
+        self.backend.events.clear()
+        with self.assertRaises(TargetNotFound):
+            flow.replay(Computer(self.backend,self.root/'runtime',timeout=.01,poll_interval=.001))
+        self.assertEqual(self.backend.events,[])
+
+    def test_keyboard_step_gaps_survive_manifest_and_generated_python(self):
+        clock=[0.]
+        recorder=Recorder(self.backend,self.root/'timed',clock=lambda:clock[0])
+        session=recorder.wrap(self.inner)
+        clock[0]=1.;session.press_key(['enter'])
+        clock[0]=2.5;session.type_text('hello')
+        recorder.finish()
+        flow=Recording.load(self.root/'timed')
+        self.assertEqual([step['delay'] for step in flow.steps],[1.,1.5])
+        class ReplayTrace:
+            def __init__(inner):inner.events=[]
+            def __enter__(inner):return inner
+            def __exit__(inner,*args):pass
+            def sleep(inner,seconds):inner.events.append(('sleep',seconds))
+            def hotkey(inner,*keys,**args):inner.events.append(('hotkey',keys))
+            def write(inner,text):inner.events.append(('write',text))
+        trace=ReplayTrace()
+        with patch('wirehand.connect',return_value=trace):
+            runpy.run_path(str(self.root/'timed/replay.py'),run_name='__main__')
+        self.assertEqual(trace.events,[('sleep',1.),('hotkey',('enter',)),('sleep',1.5),('write','hello')])
+
+    def test_invalid_unanchored_pointer_data_is_rejected_before_input(self):
+        self.session.pointer(.2,.3);self.recorder.finish()
+        data=Recording.load(self.root/'demo').data
+        data['steps'].append({'action':'scroll','args':{'position':[float('nan'),.5],'clicks':1}})
+        (self.root/'demo/recording.json').write_text(json.dumps(data))
+        self.backend.events.clear()
+        with self.assertRaisesRegex(ValueError,'position'):
+            Computer(self.backend,self.root/'runtime').replay(self.root/'demo')
+        self.assertEqual(self.backend.events,[])

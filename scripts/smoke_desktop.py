@@ -28,7 +28,7 @@ def container_python(source):
 
 
 async def interfaces(origin, token):
-    params = StdioServerParameters(command=str(ROOT / 'desktopctl'), args=['mcp'])
+    params = StdioServerParameters(command=str(ROOT / 'deploy/docker-desktop/desktopctl'), args=['mcp'])
     async with stdio_client(params) as (reader, writer), httpx.AsyncClient(base_url=origin, trust_env=False) as http:
         async with ClientSession(reader, writer) as mcp:
             await mcp.initialize()

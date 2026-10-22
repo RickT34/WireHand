@@ -1,6 +1,8 @@
 # 远程视频、SSH 与 Nginx SSL
 
-网页默认使用 **H.264 over WebSocket**。HTTPS 页面自动使用 WSS；视频、键鼠、状态和录制下载均走网页的同一个域名与端口，不依赖 UDP、STUN 或 TURN。平台适配器输出 H.264 Annex-B，应用层负责传输与播放。
+[返回文档导航](README.md)
+
+ROCK 等提供编码帧的后端默认使用 **H.264 over WebSocket**；Docker 桌面使用 JPEG 预览。HTTPS 页面自动使用 WSS；视频、键鼠、状态和录制下载均走网页的同一个域名与端口，不依赖 UDP、STUN 或 TURN。平台适配器输出 H.264 Annex-B，应用层负责传输与播放。
 
 ## 浏览器播放与延迟策略
 
@@ -49,6 +51,8 @@ KVM_TRUSTED_PROXIES=127.0.0.1
 
 继续使用原有 `KVM_TOKEN`。`KVM_HOSTS` 是浏览器访问的域名/IP，不含端口。`KVM_TRUSTED_PROXIES` 是应用实际看到的代理源 IP/CIDR，默认空，不接受 `*`。如果代理位于另一台机器，将应用绑定到可达内网地址，并只填写那台代理的地址；同时限制应用端口只对需要的内网来源开放。
 
+脚本上传最大为 64 MiB，Nginx 模板设置同等大小的 `client_max_body_size`。
+
 模板显式转发 WebSocket Upgrade、原始 Host 与 `X-Forwarded-Proto`，关闭代理缓冲，并在入口代理覆盖客户端自带的转发头。应用仅信任配置的代理地址，因此在 TLS 终止后仍能校验 HTTPS Origin、建立 WSS 会话并设置 Secure 登录 Cookie。不要把外部 Host 改成 upstream 地址。
 
 替换配置后检查并加载：
@@ -56,15 +60,17 @@ KVM_TRUSTED_PROXIES=127.0.0.1
 ```sh
 sudo nginx -t
 sudo systemctl reload nginx
-sudo systemctl restart kvm-web
+sudo systemctl restart wirehand-web
 ```
+
+Docker 部署时，upstream 通常改为宿主机的 `127.0.0.1:18810`；将域名加入 `.env` 的 `KVM_HOSTS`，并把 `KVM_TRUSTED_PROXIES` 设为容器实际收到连接的代理 IP/CIDR，然后运行 `./deploy/docker-desktop/desktopctl up`。容器看到的代理源地址可能是 Docker 网关，不能直接套用宿主机的 `127.0.0.1`。
 
 访问 `https://kvm.example.com/` 并刷新页面。只需为此服务开放 HTTPS 端口；此模式的视频不需要额外 UDP 端口。模板不会申请证书或开放防火墙。
 
 ## SSH 本地转发
 
 ```sh
-ssh -N -L 127.0.0.1:18080:127.0.0.1:8080 r5p
+ssh -N -L 127.0.0.1:18080:127.0.0.1:8080 root@rock-kvm
 ```
 
 打开 `http://127.0.0.1:18080/`，默认 H.264/WS 直接通过隧道。应用的 `KVM_HOSTS` 需包含 `127.0.0.1`。SSH 隧道未终止 HTTPS，不需要配置 `KVM_TRUSTED_PROXIES`。
@@ -97,15 +103,3 @@ Python 探针验证 Annex-B/fMP4 解码和认证；浏览器播放兼容性需�
 uv run python -m unittest discover -s tests -t . -q
 node --test tests/interfaces/test_*.cjs
 ```
-
-## 本次验证范围（2026-10-21）
-
-板子未开机，按要求仅本地测试。使用此前保存的屏幕截图叠加移动标记，软件编码为 1280×720 H.264；不是实时 HDMI 采集。
-
-- 浏览器控制台分别验证 WebCodecs 与 MSE 出帧，保留录制栏和输入状态。
-- 本地独立 Nginx 实例终止 TLS；探针显式信任临时证书，验证 HTTPS 登录、Secure Cookie、WSS Upgrade 和两种封装的实际解码。
-- 5 秒 WSS 探针：Annex-B 解码约 60fps，负载约 2.24Mbps；fMP4 解码约 59fps，负载约 2.26Mbps。
-- 10 秒测试加入 10Mbps 消费限速与 80ms ACK 延迟：解码约 60fps，负载约 2.40Mbps，最后 ACK 往返约 85ms。ACK 指标包含客户端处理/人工延迟，不能当作操作到画面的延迟。
-- 无 ACK 客户端验证有界发送与超时断开；原始 JSON 与浏览器截图位于被 Git 忽略的 `artifacts/wss/`。
-
-新编码参数尚未在 ROCK MPP 上运行，实际 WAN、显示器到浏览器的延迟、目标机键鼠反馈和不同浏览器仍待实机验收。2026-10-20 的 SSH/JPEG 诊断证据保存在 `artifacts/video-diagnosis/`，描述的是当时的旧播放策略。

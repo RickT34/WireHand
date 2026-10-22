@@ -9,7 +9,7 @@ from mcp.client.stdio import stdio_client
 async def main(host, disconnected):
     params = StdioServerParameters(command='ssh', args=[
         '-T', '-o', 'BatchMode=yes', host,
-        '/opt/kvm-mcp/.venv/bin/kvm-mcp', '--backend', 'rock5b-plus'
+        '/opt/kvm-mcp/.venv/bin/wirehand-mcp', '--backend', 'rock5b-plus'
     ])
     async with stdio_client(params) as (reader, writer):
         async with ClientSession(reader, writer) as session:

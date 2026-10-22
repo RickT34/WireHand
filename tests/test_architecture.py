@@ -11,12 +11,12 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from kvm import connect
-from kvm.platforms.registry import load_backend
+from wirehand import connect
+from wirehand.platforms.registry import load_backend
 from tests.fakes import FakeBackend
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'src/kvm'
+SOURCE = ROOT / 'src/wirehand'
 FRAMEWORKS = ('mcp', 'aiortc', 'starlette', 'uvicorn')
 
 
@@ -38,14 +38,14 @@ class ArchitectureTests(unittest.TestCase):
                 for node in ast.walk(ast.parse(path.read_text())):
                     if isinstance(node, ast.ImportFrom):
                         name = importlib.util.resolve_name('.' * node.level + (node.module or ''), package) if node.level else node.module or ''
-                        names = [name] if name != 'kvm' else [f'kvm.{a.name}' for a in node.names]
+                        names = [name] if name != 'wirehand' else [f'wirehand.{a.name}' for a in node.names]
                     elif isinstance(node, ast.Import):
                         names = [alias.name for alias in node.names]
                     else:
                         continue
                     for name in names:
-                        if name == 'kvm' or name.startswith('kvm.'):
-                            self.assertTrue(any(name == f'kvm.{p}' or name.startswith(f'kvm.{p}.') for p in allowed), f'{path}: forbidden dependency {name}')
+                        if name == 'wirehand' or name.startswith('wirehand.'):
+                            self.assertTrue(any(name == f'wirehand.{p}' or name.startswith(f'wirehand.{p}.') for p in allowed), f'{path}: forbidden dependency {name}')
                         elif not folder.startswith('interfaces/'):
                             self.assertNotIn(name.split('.')[0], FRAMEWORKS, f'{path}: {name}')
 
@@ -54,35 +54,35 @@ class ArchitectureTests(unittest.TestCase):
 
     def test_interface_import_does_not_load_platforms(self):
         self.assert_isolated_import('''import sys
-from kvm.interfaces.mcp.server import create_mcp
-from kvm.interfaces.web.app import make_app
-assert not any(n.startswith('kvm.platforms') for n in sys.modules)
+from wirehand.interfaces.mcp.server import create_mcp
+from wirehand.interfaces.web.app import make_app
+assert not any(n.startswith('wirehand.platforms') for n in sys.modules)
 ''')
 
     def test_platform_import_does_not_load_automation_or_interfaces(self):
         self.assert_isolated_import('''import sys
-from kvm.platforms.rock5b_plus.backend import Rock5BPlusBackend
-from kvm.platforms.rock5b_plus.video import VideoHub
-from kvm.platforms.docker_desktop.backend import DockerDesktopBackend
-assert not any(n.startswith(('kvm.automation', 'kvm.vision', 'kvm.interfaces')) for n in sys.modules)
+from wirehand.platforms.rock5b_plus.backend import Rock5BPlusBackend
+from wirehand.platforms.rock5b_plus.video import VideoHub
+from wirehand.platforms.docker_desktop.backend import DockerDesktopBackend
+assert not any(n.startswith(('wirehand.automation', 'wirehand.vision', 'wirehand.interfaces')) for n in sys.modules)
 assert not any(n.split('.')[0] in ('mcp', 'starlette', 'aiortc') for n in sys.modules)
 ''')
 
     def test_sdk_import_does_not_load_platforms_or_interfaces(self):
         self.assert_isolated_import('''import sys
-from kvm import connect
-from kvm.automation import Computer, Recorder, Recording
-from kvm.automation.inspection import Inspector
-assert not any(n.startswith(('kvm.platforms', 'kvm.interfaces')) for n in sys.modules)
+from wirehand import connect
+from wirehand.automation import Computer, Recorder, Recording
+from wirehand.automation.inspection import Inspector
+assert not any(n.startswith(('wirehand.platforms', 'wirehand.interfaces')) for n in sys.modules)
 assert not any(n.split('.')[0] in ('mcp', 'aiortc', 'starlette', 'uvicorn') for n in sys.modules)
 ''')
 
     def test_visual_algorithms_do_not_load_device_or_automation_code(self):
         self.assert_isolated_import('''import sys
-from kvm.vision import VisualTarget
-from kvm.vision.detection import ContourDetector
-from kvm.vision.rendering import partition
-assert not any(n.startswith(('kvm.core', 'kvm.automation', 'kvm.platforms', 'kvm.interfaces')) for n in sys.modules)
+from wirehand.vision import VisualTarget
+from wirehand.vision.detection import ContourDetector
+from wirehand.vision.rendering import partition
+assert not any(n.startswith(('wirehand.core', 'wirehand.automation', 'wirehand.platforms', 'wirehand.interfaces')) for n in sys.modules)
 ''')
 
     def test_explicit_backend_factory_and_unknown_backend(self):

@@ -1,119 +1,174 @@
-# KVM MCP
+# WireHand · 接手
 
-通过 Python API、MCP 或网页控制台查看、操作被控设备。整个仓库只有一个安装包 `kvm-mcp`，代码统一放在 `src/kvm/`，按职责分目录：
+**被控设备无需安装任何控制软件：只要能输出视频信号、接受键盘鼠标输入，就能通过相应的视频与键鼠接口接入控制，可远程操控与录制操作脚本，提供MCP服务器。**
 
-| 目录 | 职责 |
+WireHand 从视频输出观察设备界面，通过模拟键盘鼠标发送操作。控制对象不限于电脑，也包括具备相应接口的其他电子设备；网页服务、视觉识别和脚本执行都运行在外部控制端，被控设备只需输出画面并接收键鼠输入。
+
+当前硬件适配使用 **ROCK 5B+ 的 HDMI 输入与 USB HID 键盘鼠标**，接入具有兼容视频输出和标准 USB 键鼠输入的设备。接好线后，即可通过网页手动操作、使用 Python 编写自动化，或交给支持 MCP 的 AI agent 控制。
+
+录制时，鼠标按下会提取点击附近的图像作为目标；重放时重新定位目标。键盘、鼠标移动和滚轮保留输入、位置与时间间隔。脚本、目标图片和桌面数据均保存在自己的服务器上，视觉处理使用本地 OpenCV。
+
+## 工作原理
+
+![WireHand 工作原理：被控设备、KVM 设备和远程操作端](docs/images/how-it-works.svg)
+
+箭头表示画面和操作的传递方向：被控设备向 KVM 输出画面，KVM 将远程操作转换成标准键鼠输入。人通过网页接管，agent 通过 MCP 调用工具；视觉识别、录制和脚本执行都在 KVM 控制端完成。
+
+图中展示实体设备的远程接入方式；同机 MCP 客户端可直接使用 stdio。Docker 桌面提供虚拟屏幕与键鼠后端，用于无板卡体验和开发。
+
+## 适合哪些场景
+
+| 场景 | 使用方式 |
 | --- | --- |
-| `core/` | 设备接口、通用帧分发、输入互斥与控制权 |
-| `vision/` | 图像检测、目标匹配、分区与标记渲染 |
-| `automation/` | Python 操作 API、快照与目标点击、录制和重放 |
-| `platforms/` | ROCK 5B+ 硬件适配、Docker 桌面、离线图片后端、后端注册 |
-| `interfaces/` | MCP 工具与网页的认证、路由、视频传输和前端 |
-| `cli/`、`factory.py` | 命令行、配置读取与实例组装 |
+| 控制不便或无法安装控制软件的电子设备 | 连接视频输出和键鼠接口，通过外部控制端查看与操作 |
+| 重复执行桌面或网页中的固定流程 | 在网页接管设备并录制，保存后设置执行次数或无限重复 |
+| 先演示操作，再用代码调整细节 | 下载 ZIP，修改 `replay.py`，上传同名文件替换并重新执行 |
+| 给 AI agent 提供可观察、可操作的桌面 | 接入 MCP，查看截图或编号目标，再发送键鼠操作 |
+| 开发和调试视觉自动化 | 使用 Docker 桌面、模拟画面或离线截图，无需先接入板卡 |
 
-自动化层通过 `core` 的接口使用后端，图像算法独立于设备和应用。只使用 Python API 时不会导入 MCP、网页或 ROCK 实现；安装依赖统一在根目录管理。依赖方向和扩展入口见 [架构说明](docs/ARCHITECTURE.md)。
+控制实体设备从 [ROCK 5B+ 接线与部署](docs/rock5b-plus/README.md) 开始；想先体验网页、录制与脚本功能，可以使用下面的 Docker 桌面。
 
-## Python 自动化与操作录制
+## 快速开始：Docker 桌面
+
+需要 **Linux、Docker Engine、Docker Compose 插件和 Python 3**。下载或克隆本仓库后，在仓库根目录执行：
+
+```bash
+./deploy/docker-desktop/desktopctl init
+./deploy/docker-desktop/desktopctl up
+./deploy/docker-desktop/desktopctl status
+```
+
+首次启动会构建镜像并安装桌面环境。打开 **<http://127.0.0.1:18810/>**，使用 `deploy/docker-desktop/.env` 中自动生成的 `KVM_TOKEN` 登录。
+
+容器内预装 Xfce、Firefox ESR、终端和文件管理器。默认只监听本机回环地址；部署在远端服务器时，在自己的电脑上建立 SSH 隧道：
+
+```bash
+ssh -N -L 18810:127.0.0.1:18810 user@server
+```
+
+随后仍访问 `http://127.0.0.1:18810/`。桌面主目录、`/workspace` 和脚本库分别保存在 Docker 命名卷中，重建容器后保留。
+
+常用管理命令：
+
+```bash
+./deploy/docker-desktop/desktopctl logs       # 查看日志
+./deploy/docker-desktop/desktopctl restart    # 重启当前版本
+./deploy/docker-desktop/desktopctl up         # 构建并启用更新后的代码
+./deploy/docker-desktop/desktopctl down       # 停止服务，保留数据卷
+```
+
+分辨率、局域网访问、备份与恢复见 [Docker 桌面指南](docs/DOCKER_DESKTOP.md)。
+
+## 网页录制与脚本执行
+
+1. 点击 **接管控制**，使用画面中的鼠标和键盘操作设备。
+2. 输入脚本名称，点击 **开始录制**，完成希望重复执行的操作。
+3. 点击 **停止并生成脚本**，脚本和目标图片自动保存到服务器的脚本库。
+4. 点击 **结束接管**，设置重复次数或无限重复，再点击脚本的 **运行**。
+5. 在运行面板查看进度和日志；点击 **停止执行**，或重新接管设备，即可停止任务。
+
+下载文件名与脚本名称对应，例如 `每日整理.zip`。解压后可以修改 `replay.py`、添加辅助模块，再上传同名 ZIP；网页会提示是否替换，实际运行的是修改后的 Python 文件。
+
+![网页脚本库：上传、重复执行和运行日志](docs/images/script-library.png)
+
+网页只有接管和非接管两种模式。接管时由当前浏览器独占输入；脚本运行时由该任务独占自动输入。关闭浏览器会结束手动接管，已经启动的服务器脚本任务继续运行。
+
+完整流程、压缩包格式与存储目录见 [网页控制台指南](docs/WEB_CONSOLE.md)。
+
+## Python SDK
+
+SDK 提供截图、点击、键盘、滚轮、拖动、视觉等待和录制接口。它与网页共用同一套设备适配器与输入控制规则。
+
+在 Docker 桌面中，先进入容器：
+
+```bash
+./deploy/docker-desktop/desktopctl shell
+```
+
+然后运行：
 
 ```python
-from kvm import connect
-from kvm.automation import Recording
+from wirehand import connect
 
-with connect(backend="rock5b-plus") as computer:
-    computer.click(320, 240)
-    computer.hotkey("ctrl", "a")
-    computer.write("hello")
-    Recording.load("my-recording").replay(computer)
+with connect() as computer:
+    print(computer.size())
+    computer.screenshot().save('/workspace/screen.png')
+    # 确认屏幕坐标后，可以发送操作：
+    # computer.click(320, 240)
+    # computer.hotkey('ctrl', 'a')
+    # computer.write('hello')
 ```
 
-网页接管后点击“开始录制”，正常操作，再点“停止并生成脚本”。下载包包含可编辑的 `replay.py`、目标图像和结构化记录；脚本自动定位并等待目标，无需手动裁图或为每步编写等待循环。录制捕获经过网页控制台的输入；直接插在目标电脑上的物理键鼠需要额外的输入监听后端。
+容器已配置后端和运行目录。SDK 在设备后端所在环境执行：Docker 脚本在容器中运行，ROCK 脚本在板子上运行。宿主机上的 `connect(backend='docker-desktop')` 不会自动连接容器。
 
-安装、录制工作流和当前能力边界见 [自动化与录制说明](docs/AUTOMATION.md)。
+录制文件中的图像目标也可以用于手写脚本：
 
-## 开发与验证
+```python
+from pathlib import Path
+from wirehand import connect
+from wirehand.automation import Recording
 
-```sh
+flow = Recording.load(Path('/workspace/my-flow'))  # 解压后的录制目录
+with connect(timeout=15) as computer:
+    computer.click(target=flow.target('target_0001'))
+    computer.write('hello')
+```
+
+目标 ID 取自 `recording.json`。像素坐标、图像匹配和取消行为见 [SDK 与录制说明](docs/AUTOMATION.md)。网页右上角的 **SDK 文档** 从当前接口自动生成，也可以在源码环境导出：
+
+```bash
 uv sync --frozen
-uv run python -m unittest discover -s tests -t . -q
-node --test tests/interfaces/test_*.cjs
-uv build
+uv run wirehand-docs --output artifacts/sdk-docs
 ```
 
-测试在普通 Linux 开发机运行，不需要板卡；覆盖真实 stdio MCP、HTTP/WebSocket、控制权互斥、视频进程清理、HID 报告和包内 EDID。硬件性能、目标机键鼠行为和浏览器操作体验需要另做实机验收。
+## MCP 接入
 
-## 启动
+支持 stdio 的 MCP 客户端可以使用以下配置，把路径替换为本机仓库的绝对路径；Docker 桌面需先启动：
 
-无需板卡的持久 Docker 桌面（Xfce + Firefox，复用网页/MCP）：
-
-```sh
-./desktopctl init
-./desktopctl up
+```json
+{
+  "mcpServers": {
+    "desktop": {
+      "command": "/absolute/path/to/wirehand/deploy/docker-desktop/desktopctl",
+      "args": ["mcp"]
+    }
+  }
+}
 ```
 
-打开 `http://127.0.0.1:18810/`，使用 `deploy/docker-desktop/.env` 中的 `KVM_TOKEN` 登录。用户主目录、工作文件和录制分别保存在独立命名卷中，重建容器仍保留。启动、备份与 MCP 配置见 [Docker 桌面说明](docs/DOCKER_DESKTOP.md)。
+工具提供截图、按键、文本输入、鼠标操作，以及 `inspect_screen` / `inspect_region` / `click_target`。agent 可以选择图像中的编号来点击；密集画面先分区，再返回放大的局部标记图。
 
-在已经配置好硬件的板子上：
+浏览器接管或服务器脚本执行期间，MCP 工具返回占用错误。结束接管或任务后可继续调用。连接方式、工具参数与排查方法见 [MCP 接入指南](docs/MCP.md)。
 
-```sh
-uv run kvm-mcp --backend rock5b-plus
+## 控制电子设备：ROCK 5B+
+
+将被控设备的 **HDMI OUT 接到 ROCK 5B+ 的 HDMI IN**，再用板子的 USB-C 数据口连接被控设备的 USB 主机口。板子独立供电，被控设备通过 HDMI 输出画面、通过 USB 接收标准 HID 键鼠事件，无需安装控制软件。
+
+完成板端驱动、USB gadget 和 EDID 配置后，在板子的仓库目录运行：
+
+```bash
+uv sync --frozen
+uv run wirehand-web --backend rock5b-plus
 ```
 
-网页配置好 `KVM_TOKEN` 和 `KVM_HOSTS` 后启动：
+启动前需配置 `KVM_TOKEN` 等环境变量。接线、系统依赖、服务安装和 SSH MCP 配置见 [ROCK 5B+ 部署指南](docs/rock5b-plus/README.md)；跨网络观看见 [SSH / HTTPS 与视频传输](docs/REMOTE_VIEWING.md)。
 
-```sh
-uv run kvm-web --backend rock5b-plus
-```
+## 当前支持范围
 
-也可以使用 `python -m kvm mcp --backend rock5b-plus` 和 `python -m kvm web --backend rock5b-plus`。必须通过 `--backend` 或 `KVM_BACKEND` 明确选择平台。
+- **运行环境**：服务端使用 Linux/POSIX 输入锁；Docker 桌面已在 ARM64 Linux 上验证。
+- **画面**：Docker 桌面提供最高 5fps 的 JPEG 预览；ROCK 后端支持硬件视频路径，网页可使用 H.264 WebSocket、MSE、WebRTC 或 JPEG，取决于驱动和浏览器能力。
+- **录制**：捕获经过网页或 SDK 的操作。鼠标按下时生成局部 target；键盘、移动和滚轮不生成 target。直接接在目标电脑上的物理键鼠不进入该录制通道。
+- **重放**：点击目标会重新匹配；目标消失或匹配不唯一时停止。键盘焦点、菜单布局和输入法状态仍需与流程一致。
+- **输入与权限**：文本输入采用 US 布局 ASCII 约定；音频和剪贴板通道尚未提供。上传的 Python 脚本以服务器服务用户身份执行。
 
-| 应用配置 | 默认值 | 含义 |
-| --- | --- | --- |
-| `KVM_BACKEND` | 无 | `rock5b-plus`、`docker-desktop`、`image` 或 `module:factory` |
-| `KVM_RUNTIME` / `--runtime` | `/run/kvm-mcp` | 同一设备的 SDK、MCP 与网页必须共用，包含输入锁和接管标记 |
-| `KVM_TOKEN` | 无 | 网页密码，至少 20 个字符 |
-| `KVM_BIND` | `0.0.0.0` | 网页监听地址 |
-| `KVM_PORT` | `8080` | 网页端口 |
-| `KVM_RECORDINGS` | `~/.local/share/kvm-mcp/recordings` | 网页录制的持久保存目录 |
-| `KVM_HOSTS` | `localhost,127.0.0.1` | 允许访问的主机名/IP，不含端口，逗号分隔 |
-| `KVM_TRUSTED_PROXIES` | 空 | 信任转发头的代理 IP/CIDR，逗号分隔；Nginx 同机时可设 `127.0.0.1` |
+## 文档与开发
 
-局域网地址、板卡名字和视频编码器路径都不再硬编码在网页应用里。系统服务、SSH MCP 示例和 ROCK 5B+ 参数见 [平台部署说明](docs/rock5b-plus/README.md)。
+- [文档导航](docs/README.md)：按任务选择指南。
+- [配置参考](docs/CONFIGURATION.md)：后端、端口、访问密码与运行目录。
+- [贡献与本地开发](CONTRIBUTING.md)：安装源码、无硬件演示、测试和构建。
+- [架构与扩展](docs/ARCHITECTURE.md)：一个安装包，按硬件、视觉、自动化和应用职责分目录。
+- [视觉定位](docs/VISUAL_TARGETING.md)：候选检测、分区、分页和按编号点击。
 
-## 使用行为
+## 许可证
 
-MCP 提供 `status`、`screenshot`、`press_key`、`type_text`、`mouse`、`release_all`，以及视觉定位工具 `inspect_screen`、`inspect_region`、`click_target`。截图返回 JPEG；鼠标使用 0..1 归一化坐标；文本使用 US 键盘布局的 ASCII 字符。
-
-视觉定位将同一张截图拆成总览和放大区域，每张区域图最多 18 个候选目标。超过 180 个候选时先返回九个大区域，agent 选区后再查看具体标记。agent 可直接用截图 ID 与目标 ID 点击；密集区域可分页，漏检位置可用 4×4 网格继续细分。点击前检查新画面和控制权变化。实现、接口和真实屏幕检查记录见 [视觉定位说明](docs/VISUAL_TARGETING.md)。
-
-不连接板子也能调试真实截图，导出可交互的本地检查页面：
-
-```sh
-uv run kvm-inspect /path/to/screenshot.jpg --output artifacts/vision/my-screen
-```
-
-网页默认只查看。点击“接管控制”后浏览器独占输入，MCP 仍可查询状态与截图。连接断开或心跳超时后自动释放键鼠、结束接管并恢复 MCP，无响应连接最多约 7 秒后释放。释放失败也会结束接管并记录错误；服务重启会尝试重置旧会话并清理遗留标记。MCP 和网页应使用相同系统用户及运行目录。当前进程锁依赖 Linux/POSIX `flock`。
-
-网页默认使用同源 H.264 WebSocket：HTTPS 页面走 WSS，HTTP 页面走 WS，可直接经过 Nginx 反代或 SSH TCP 隧道。浏览器优先通过 WebCodecs 立即解码绘制；不支持时自动改用 fMP4/MSE。平台仅提供编码帧，传输、封装、播放和观看者背压都在应用层。手动选择 WebRTC 可继续使用局域网 UDP 路径。
-
-视频实际出帧后才关闭 JPEG 备用画面。队列积压时丢弃旧预测链并等待关键帧，客户端停止确认时关闭连接，避免不断累积延迟。ROCK 默认输出上限为 720p60、目标 2.5Mbps，可调整分辨率与码率。JPEG 备用路径仍限制为最高 5fps、约 5Mbps 图像负载。见 [远程视频与 Nginx SSL 配置](docs/REMOTE_VIEWING.md)。
-
-无板卡也可启动带移动标记的本地 H.264 控制台，测试 WebCodecs/MSE、登录和 WebSocket（不会打开 HID）：
-
-```sh
-uv run python examples/video_transport_demo.py --image /path/to/screenshot.jpg
-```
-
-打开 `http://127.0.0.1:8800/`；密码写入 `/tmp/kvm-h264-demo-token`。省略 `--image` 使用合成背景。
-
-## 继续开发
-
-- [自动化库与录制脚本](docs/AUTOMATION.md)
-- [架构、接口约定与新增平台](docs/ARCHITECTURE.md)
-- [Docker 持久桌面与 MCP 接入](docs/DOCKER_DESKTOP.md)
-- [视觉定位与无硬件调试](docs/VISUAL_TARGETING.md)
-- [ROCK 5B+ 安装与部署](docs/rock5b-plus/README.md)
-- [ROCK 5B+ MPP 驱动部署](docs/rock5b-plus/MPP_DEPLOYMENT.md)
-- [历史 WebRTC 实机验证](docs/rock5b-plus/WEBRTC.md)
-- [重构前的原型记录](docs/history/PROTOTYPE.md)
-
-2026-10-19 的帧率和驱动记录描述重构前的板端部署；不代表这次代码已重新部署或通过实机验收。
+本项目采用 [MIT License](LICENSE)。

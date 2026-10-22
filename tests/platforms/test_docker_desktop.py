@@ -11,10 +11,10 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 from Xlib import X, XK, display, error
 
-from kvm.platforms.docker_desktop.backend import DockerDesktopBackend
-from kvm.platforms.docker_desktop.input import DesktopInput
-from kvm.platforms.docker_desktop.video import DesktopVideo
-from kvm.platforms.registry import load_backend
+from wirehand.platforms.docker_desktop.backend import DockerDesktopBackend
+from wirehand.platforms.docker_desktop.input import DesktopInput
+from wirehand.platforms.docker_desktop.video import DesktopVideo
+from wirehand.platforms.registry import load_backend
 
 
 class DesktopContractTests(unittest.TestCase):
@@ -73,7 +73,7 @@ class DesktopContractTests(unittest.TestCase):
                          [(X.ButtonPress, 3), (X.ButtonPress, 5), (X.ButtonRelease, 5)])
 
     def test_factory_does_not_connect_to_display(self):
-        with patch('kvm.platforms.docker_desktop.backend.display.Display') as connect:
+        with patch('wirehand.platforms.docker_desktop.backend.display.Display') as connect:
             backend = load_backend('docker-desktop', Path('/tmp/unused'))
             self.assertEqual(backend.name, 'docker-desktop')
             self.assertIsNone(backend.create_video().encoded)
@@ -81,7 +81,7 @@ class DesktopContractTests(unittest.TestCase):
 
     def test_missing_display_is_reported_without_crashing_status(self):
         with patch.dict(os.environ, DISPLAY=':99'), patch(
-                'kvm.platforms.docker_desktop.backend.display.Display',
+                'wirehand.platforms.docker_desktop.backend.display.Display',
                 side_effect=error.DisplayConnectionError(':99', 'unavailable')):
             state = DockerDesktopBackend(Path('/tmp/unused')).status()
         self.assertFalse(state['input']['connected'])
@@ -91,7 +91,7 @@ class DesktopContractTests(unittest.TestCase):
     def test_display_disconnect_during_capture_remains_a_recoverable_error(self):
         self.connection.screen().root.get_geometry.side_effect = error.ConnectionClosedError('server')
         self.connection.close.side_effect = error.ConnectionClosedError('server')
-        with patch('kvm.platforms.docker_desktop.backend.display.Display', return_value=self.connection):
+        with patch('wirehand.platforms.docker_desktop.backend.display.Display', return_value=self.connection):
             with self.assertRaisesRegex(RuntimeError, 'Desktop display'):
                 DockerDesktopBackend(Path('/tmp/unused')).screenshot()
 

@@ -1,7 +1,7 @@
 import unittest
 
-from kvm.platforms.rock5b_plus.hid import char_report, key_report, mouse_report, send_press
-from kvm.platforms.rock5b_plus.backend import RockInput
+from wirehand.platforms.rock5b_plus.hid import char_report, key_report, mouse_report, send_press
+from wirehand.platforms.rock5b_plus.backend import RockInput
 
 
 class RecordingHID:

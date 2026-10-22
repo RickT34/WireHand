@@ -1,123 +1,140 @@
-# ROCK 5B+ 平台
+# ROCK 5B+ 部署指南
 
-本目录保存 ROCK 5B+ 的接线、部署和实机记录。适配代码在 `src/kvm/platforms/rock5b_plus/`，服务模板在 `deploy/rock5b-plus/`。以下命令针对重构后的包结构。
+[返回文档导航](../README.md)
 
-## 接线与系统环境
+**被控设备无需安装任何控制软件。** ROCK 5B+ 通过 HDMI IN 采集画面，通过 USB gadget 模拟标准 HID 键盘鼠标。具有兼容视频输出、能够接收 USB 键鼠输入的电子设备即可按此方式接入，控制对象不限于电脑。
 
-- 被控电脑 HDMI OUT → ROCK 5B+ HDMI IN。
-- 被控电脑 USB 主机口 → 板子的全功能 USB-C 数据口。
-- 板子的独立 USB-C PD 供电口继续连接电源。
-- 首次使用单屏或复制模式，US 键盘布局，1080p60 输入。
+网页服务、图像识别和录制脚本运行在板子上。被控设备只需输出画面并接收键鼠输入，控制过程不依赖其操作系统提供远程控制 API。
 
-已验证过的驱动组合与安装步骤见 [MPP_DEPLOYMENT.md](MPP_DEPLOYMENT.md)，安装结果见 [MPP_SETUP.md](MPP_SETUP.md)。这些是 2026-10-19 的历史证据。当前适配器保留 vendor MPP/RGA 与主线 GStreamer JPEG 两条实际硬件路径。
+适配代码位于 `src/wirehand/platforms/rock5b_plus/`，部署模板位于 `deploy/rock5b-plus/`。本指南的主机名 `rock-kvm` 是示例，替换为自己的 SSH 地址或别名。
 
-板子需要 `v4l-utils`、GStreamer 的 tools/base/good 插件以及 USB configfs 支持。MPP 模式额外需要带 Rockchip MPP/RGA 的内核和 FFmpeg；普通发行版 FFmpeg 不等同于该版本。
+## 接线与系统条件
 
-## 安装
+1. 被控设备 HDMI OUT → ROCK 5B+ HDMI IN。
+2. 被控设备 USB 主机口 → 板子的全功能 USB-C 数据口。
+3. 板子的独立 USB-C PD 供电口连接电源。
+4. 首次调试使用单屏或复制模式、1080p60 输入和 US 键盘布局。
 
-把当前仓库内容放在板子的 `/opt/kvm-mcp`，在该目录执行：
+板端需要 Linux、Python 3.11+、HDMI RX V4L2 驱动、USB device controller / configfs，以及对应的视频编码环境。常用用户态工具可在 Debian 系统中安装：
 
-```sh
-uv sync --frozen
+```bash
+apt-get update
+apt-get install python3-venv v4l-utils gstreamer1.0-tools \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good
 ```
 
-没有 uv 时可以用标准 Python 包安装：
+MPP H.264 路径还需要匹配的 Rockchip vendor 内核、MPP/RGA 设备接口和支持 `h264_rkmpp` 的 FFmpeg。普通发行版 FFmpeg 不一定包含这些组件。适配器同时保留主线内核的 GStreamer RGA/JPEG 路径。
 
-```sh
-python3 -m venv /opt/kvm-mcp/.venv
-/opt/kvm-mcp/.venv/bin/pip install /opt/kvm-mcp
+检查设备能力：
+
+```bash
+v4l2-ctl --list-devices
+ls /sys/class/udc
+ls /dev/mpp_service /dev/rga
+/usr/lib/jellyfin-ffmpeg/ffmpeg -encoders | grep h264_rkmpp
 ```
 
-`requirements.txt` 仅是依赖导出，不能替代项目包安装。新命令、静态文件和 EDID 都通过项目包提供。
+最后两项用于 MPP 路径。已验证过的内核和 FFmpeg 组合、安装及回退过程记录在 [历史 MPP 部署手册](../history/rock5b-plus/MPP_DEPLOYMENT.md)。选择系统镜像和驱动时按实际版本核对，历史手册中的固定版本号不是当前软件仓库的可用性承诺。
 
-生成网页密码（只在配置尚不存在时执行）：
+## 安装应用
 
-```sh
+将仓库放到板子的 `/opt/kvm-mcp`。下面的系统配置和服务模板按 root 用户部署；使用其他用户时，需要另外配置设备和目录权限。
+
+```bash
+cd /opt/kvm-mcp
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+```
+
+已安装 uv 时可改用 `uv sync --frozen`。安装整个项目后，`wirehand-web`、`wirehand-mcp`、静态资源和 EDID 都会就位。
+
+从模板创建配置，并生成随机密码：
+
+```bash
 python3 - <<'PY'
-from pathlib import Path
+import os
 import secrets
-path = Path('/etc/kvm-mcp.env')
-with path.open('x') as stream:
-    path.chmod(0o600)
-    stream.write('KVM_TOKEN=' + secrets.token_urlsafe(24) + '\n')
-    stream.write('KVM_HOSTS=192.168.50.152,r5p,localhost,127.0.0.1\n')
-    stream.write('KVM_PORT=8080\nKVM_VIDEO_MODE=hardware\n')
+from pathlib import Path
+
+template = Path('deploy/rock5b-plus/kvm.env.example').read_text()
+config = template.replace('KVM_TOKEN=\n', 'KVM_TOKEN=' + secrets.token_urlsafe(32) + '\n', 1)
+fd = os.open('/etc/kvm-mcp.env', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, 'w') as stream:
+    stream.write(config)
 PY
 ```
 
-把示例中的 IP/主机名改为实际地址。应用默认仅接受 localhost 和 127.0.0.1；局域网访问必须配置 `KVM_HOSTS`。密码通过远端配置读取，不加入源码。
+配置已存在时命令会退出，不覆盖原密码。默认网页监听板子的 `127.0.0.1:8080`；密码保存在 `/etc/kvm-mcp.env`。需要局域网直接访问时，调整 `KVM_BIND`，并把实际浏览器访问的 IP/域名加入 `KVM_HOSTS`。
 
-以 root 安装服务模板：
+安装并启动服务：
 
-```sh
+```bash
 install -m 644 deploy/rock5b-plus/kvm-gadget.service /etc/systemd/system/
 install -m 644 deploy/rock5b-plus/kvm-hdmi.service /etc/systemd/system/
-install -m 644 deploy/rock5b-plus/kvm-web.service /etc/systemd/system/
+install -m 644 deploy/rock5b-plus/wirehand-web.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now kvm-gadget kvm-hdmi kvm-web
+systemctl enable --now kvm-gadget kvm-hdmi wirehand-web
+systemctl status wirehand-web kvm-gadget kvm-hdmi --no-pager
 ```
 
-网页服务模板明确选择 `rock5b-plus`，并依赖该平台的 gadget 和 EDID 服务。平台初始化命令是 `rock5b-plus-gadget start|stop` 和 `rock5b-plus-hdmi [--restore]`；它们不需要导入网页或 MCP。
+`kvm-gadget` 初始化 USB HID，`kvm-hdmi` 配置 EDID，`wirehand-web` 启动控制台。对应手工初始化命令是 `rock5b-plus-gadget start|stop` 和 `rock5b-plus-hdmi [--restore]`。
 
-旧部署升级时，先停止 `kvm-web`，安装项目包、替换上述服务和 MCP 客户端配置，再重新加载并启动服务。旧根目录脚本不再使用；不要只覆盖几个 `.py` 文件后继续沿用旧 ExecStart。
+## 打开控制台
 
-## MCP
+在自己的电脑上建立 SSH 隧道：
 
-客户端可使用 [MCP 配置示例](../../deploy/rock5b-plus/mcp-config.json)：
-
-```json
-{
-  "mcpServers": {
-    "rock-kvm": {
-      "command": "ssh",
-      "args": ["-T", "-o", "BatchMode=yes", "r5p", "/opt/kvm-mcp/.venv/bin/kvm-mcp", "--backend", "rock5b-plus"]
-    }
-  }
-}
+```bash
+ssh -N -L 18080:127.0.0.1:8080 root@rock-kvm
 ```
 
-SSH 提供认证，禁止分配终端。网页与 SSH MCP 默认共用 `/run/kvm-mcp`。若更改运行目录，两边都要明确指定；systemd 的 `EnvironmentFile` 不会自动传到 SSH 会话。
+打开 <http://127.0.0.1:18080/>，用 `/etc/kvm-mcp.env` 中的密码登录。接管、录制与脚本管理见 [网页控制台](../WEB_CONSOLE.md)。设置 HTTPS 和调整视频模式见 [远程访问](../REMOTE_VIEWING.md)。
+
+MCP 使用 [SSH 配置示例](../../deploy/rock5b-plus/mcp-config.json)，详细说明见 [MCP 接入](../MCP.md)。网页、SDK 和 SSH MCP 需要使用相同用户及 `/run/kvm-mcp`；systemd 的 `EnvironmentFile` 不会自动传到 SSH 会话。
 
 ## 平台配置
 
-这些变量只由 ROCK 适配器消费：
+通用配置见 [配置参考](../CONFIGURATION.md)。以下变量由 ROCK 适配器读取：
 
-| 配置 | 默认值 | 含义 |
+| 配置 | 默认值 | 用途 |
 | --- | --- | --- |
-| `KVM_VIDEO_DEVICE` | 动态发现 | 覆盖 HDMI RX V4L2 节点 |
+| `KVM_VIDEO_DEVICE` | 动态发现 | 指定 HDMI RX V4L2 节点 |
 | `KVM_VIDEO_MODE` | `hardware` | `hardware` 或 `software` |
-| `KVM_VIDEO_SOURCE` | 真实输入 | `test` 使用合成源，仍需要所选编码工具 |
-| `KVM_TRANSPORT` | `h264` | vendor 输出 H.264，供应用选择 WS/WSS 或 WebRTC；`jpeg` 仅输出 JPEG |
-| `KVM_MAX_FPS` | `60` | 1..60，不超过实际输入帧率 |
-| `KVM_MAX_WIDTH` / `KVM_MAX_HEIGHT` | `1280` / `720` | 等比缩放输出上限；宽 320..3840，高 180..2160 |
-| `KVM_H264_BITRATE` | `2500000` | 500000..20000000 bit/s |
-| `KVM_FFMPEG` | `/usr/lib/jellyfin-ffmpeg/ffmpeg` | MPP/RGA FFmpeg 路径 |
-| `KVM_EDID_FILE` | 包内 `edid/1080p-rgb.bin` | RGB EDID 配置 |
+| `KVM_VIDEO_SOURCE` | 真实输入 | `test` 使用合成源，仍需要对应编码工具 |
+| `KVM_TRANSPORT` | `h264` | vendor 输出 H.264；`jpeg` 只输出 JPEG |
+| `KVM_MAX_FPS` | `60` | 1–60，不超过输入帧率 |
+| `KVM_MAX_WIDTH` / `KVM_MAX_HEIGHT` | `1280` / `720` | 等比缩放上限；宽 320–3840，高 180–2160 |
+| `KVM_H264_BITRATE` | `2500000` | 500000–20000000 bit/s |
+| `KVM_FFMPEG` | `/usr/lib/jellyfin-ffmpeg/ffmpeg` | 含 MPP/RGA 支持的 FFmpeg |
+| `KVM_EDID_FILE` | 包内 `edid/1080p-rgb.bin` | RGB EDID 文件 |
 
-vendor 管线为 HDMI/V4L2 mmap → 上传硬件缓冲 → RGA → MPP H.264，并分出 5fps JPEG。主线硬件路径使用 GStreamer RGA/JPEG。MCP 优先读取两秒内的共享帧；网页未运行时可独立截图。
+网页采集时，MCP 和 SDK 优先读取两秒内的共享截图；网页没有采集时可以独立截图。录制目标所用分辨率受实际采集输出影响。
 
-## 验收与维护
+## 更新、检查与停用
 
-在开发机运行本地测试后，用控制机执行实机检查：
+更新源码后，在板子上重新安装项目并重启网页：
 
-```sh
-uv run python scripts/smoke_mcp.py r5p
-uv run python scripts/smoke_web.py --origin http://192.168.50.152:8080 --frames 20 --live
-uv run python scripts/smoke_h264.py --origin http://192.168.50.152:8080 --seconds 10
-uv run python scripts/smoke_rtc.py --origin http://192.168.50.152:8080 --seconds 10
-ssh r5p 'systemctl status kvm-web kvm-gadget kvm-hdmi --no-pager'
+```bash
+cd /opt/kvm-mcp
+.venv/bin/python -m pip install .
+systemctl restart wirehand-web
+journalctl -u wirehand-web -n 50 --no-pager
 ```
 
-网页 smoke 脚本读取控制机仓库根目录的 `web-access.txt`（`Password: ...`，不入版本控制），只检查查看权限和视频，不发送实际键鼠输入。无信号负向检查使用 `smoke_mcp.py --disconnected`；仅在确认 HDMI/USB 都已断开时运行。JPEG smoke 不给 `--frames` 时验证无信号等待。
+在控制机的仓库根目录中，可运行这些探针；参数中的主机名和端口对应前述 SSH 隧道：
 
-恢复原 EDID：先停止网页，停用 `kvm-hdmi`，执行 `/opt/kvm-mcp/.venv/bin/rock5b-plus-hdmi --restore`，再按需要启动网页。原始 EDID 保存在 `/var/lib/kvm-mcp/original-edid.bin`。恢复可能重新协商到当前管线不支持的格式。
-
-浏览器连接断开后自动结束接管；无响应连接在约七秒后释放。正常停用网页也会清理接管状态；异常退出遗留的标记在服务重启时清理。`/run` 的状态在整机重启后清除。跨网络访问使用 [Nginx HTTPS/WSS 反代](../REMOTE_VIEWING.md)，网页视频与操作共用一个 HTTPS 端口。可选 WebRTC 使用 host ICE 和动态 UDP 端口，普通 HTTP 反代不转发其媒体流。
-
-控制权释放的实机回归检查：
-
-```sh
-uv run python scripts/smoke_control.py --origin http://192.168.50.152:8080 --check-timeout
+```bash
+uv run python scripts/smoke_mcp.py root@rock-kvm
+uv run python scripts/smoke_web.py --origin http://127.0.0.1:18080 --frames 20 --live
+uv run python scripts/smoke_h264.py --origin http://127.0.0.1:18080 --seconds 10
+uv run python scripts/smoke_control.py --origin http://127.0.0.1:18080 --check-timeout
 ```
 
-该检查会申请并释放浏览器控制权，验证正常断线与七秒超时。接管和断开会发送键鼠释放报告，不发送按键按下或鼠标点击；已有控制会话时直接退出。
+网页探针从控制机仓库根目录的 `web-access.txt` 读取 `Password: ...` 行。该文件应以权限 `0600` 保存，不提交到 Git。查看和视频探针不点击目标电脑；控制权探针会申请并释放接管，并发送键鼠释放报告。完整的真实输入验收应在确认目标电脑适合测试后进行。
+
+只停用网页：
+
+```bash
+systemctl disable --now wirehand-web
+```
+
+停用 USB 模拟设备：`systemctl disable --now kvm-gadget`。恢复原 EDID 时，先停止网页和 `kvm-hdmi`，再执行 `/opt/kvm-mcp/.venv/bin/rock5b-plus-hdmi --restore`；原 EDID 保存在 `/var/lib/kvm-mcp/original-edid.bin`。

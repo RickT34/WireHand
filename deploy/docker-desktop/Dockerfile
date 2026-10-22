@@ -14,7 +14,7 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash agent \
 ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt /opt/kvm-requirements.txt
 RUN pip install --no-cache-dir -r /opt/kvm-requirements.txt
-COPY pyproject.toml README.md /opt/kvm-mcp/
+COPY pyproject.toml README.md LICENSE /opt/kvm-mcp/
 COPY src /opt/kvm-mcp/src
 RUN pip install --no-cache-dir --no-deps /opt/kvm-mcp
 COPY deploy/docker-desktop/*.sh deploy/docker-desktop/*.conf deploy/docker-desktop/*.py /opt/desktop/
